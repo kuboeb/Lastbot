@@ -1331,7 +1331,9 @@ def send_broadcast(broadcast_id):
         return jsonify({'success': False, 'error': str(e)})
     finally:
         cur.close()
-        conn.close()@app.route('/broadcast/<int:broadcast_id>/stats')
+        conn.close()
+
+@app.route('/broadcast/<int:broadcast_id>/stats')
 @login_required
 def broadcast_stats(broadcast_id):
     """Статистика рассылки"""
@@ -1343,12 +1345,16 @@ def broadcast_stats(broadcast_id):
         cur.execute("SELECT * FROM broadcasts WHERE id = %s", (broadcast_id,))
         broadcast = cur.fetchone()
         
+        if not broadcast:
+            flash('Рассылка не найдена', 'danger')
+            return redirect(url_for('broadcast'))
+        
         # Получаем статистику по получателям
         cur.execute("""
             SELECT 
                 COUNT(*) as total,
                 COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
-                COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered,
+                COUNT(CASE WHEN delivered_at IS NOT NULL THEN 1 END) as delivered,
                 COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
                 COUNT(CASE WHEN converted = TRUE THEN 1 END) as converted
             FROM broadcast_recipients
@@ -1358,7 +1364,7 @@ def broadcast_stats(broadcast_id):
         
         # Получаем ошибки
         cur.execute("""
-            SELECT br.*, bu.username
+            SELECT br.*, bu.username, br.sent_at
             FROM broadcast_recipients br
             LEFT JOIN bot_users bu ON br.user_id = bu.user_id
             WHERE br.broadcast_id = %s AND br.status = 'error'
@@ -1377,8 +1383,6 @@ def broadcast_stats(broadcast_id):
     finally:
         cur.close()
         conn.close()
-
-
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)

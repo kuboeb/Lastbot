@@ -106,7 +106,7 @@
                             </td>
                             <td>{{ broadcast.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                             <td>
-                                <a href="{{ url_for('broadcast_stats', broadcast_id=broadcast.id) }}" 
+                                <a href="/broadcast/{{ broadcast.id }}/stats" 
                                    class="btn btn-sm btn-info">
                                     <i class="bi bi-bar-chart"></i>
                                 </a>
