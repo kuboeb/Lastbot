@@ -186,7 +186,7 @@
                             <td>
                                 <span title="{{ app.created_at|datetime }}">
                                     {% if app.hours_ago < 1 %}
-                                        только что
+                                        {{ app.created_at.strftime('%d.%m.%Y %H:%M:%S') if app.created_at else '-' }}
                                     {% elif app.hours_ago < 24 %}
                                         {{ "%.0f"|format(app.hours_ago) }}ч назад
                                     {% else %}
