@@ -231,21 +231,166 @@ def applications():
 def users():
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
+    
+    # Получаем параметры фильтров
+    search = request.args.get('search', '')
+    has_application = request.args.get('has_application', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    # Базовый запрос
+    query = """
         SELECT u.*, 
                COUNT(DISTINCT a.id) as has_application,
                COUNT(DISTINCT r.referred_id) as referrals_count
         FROM bot_users u
         LEFT JOIN applications a ON u.user_id = a.user_id
         LEFT JOIN referrals r ON u.user_id = r.referrer_id
-        GROUP BY u.id, u.user_id, u.username, u.first_seen, u.last_activity, u.source_id, u.has_application, u.is_blocked
-        ORDER BY u.first_seen DESC
-    """)
+        WHERE 1=1
+    """
+    params = []
+    
+    # Добавляем условия фильтрации
+    if search:
+        query += " AND (u.username ILIKE %s OR CAST(u.user_id AS TEXT) LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        query += " AND u.first_seen >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND u.first_seen <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    query += " GROUP BY u.id, u.user_id, u.username, u.first_seen, u.last_activity, u.source_id, u.has_application, u.is_blocked"
+    
+    # Фильтр по наличию заявки
+    if has_application == '1':
+        query += " HAVING COUNT(DISTINCT a.id) > 0"
+    elif has_application == '0':
+        query += " HAVING COUNT(DISTINCT a.id) = 0"
+    
+    query += " ORDER BY u.first_seen DESC"
+    
+    cur.execute(query, params)
+    users = cur.fetchall()
+    
+    # Общее количество пользователей
+    cur.execute("SELECT COUNT(*) as count FROM bot_users")
+    total_count = cur.fetchone()['count']
+    
+    cur.close()
+    conn.close()
+    
+    return render_template('users.html', users=users, total_count=total_count)
+
+@app.route('/export_users')
+@login_required
+def export_users():
+    import io
+    import xlsxwriter
+    from flask import send_file
+    
+    # Получаем те же данные с фильтрами
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    search = request.args.get('search', '')
+    has_application = request.args.get('has_application', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    query = """
+        SELECT u.*, 
+               COUNT(DISTINCT a.id) as has_application,
+               COUNT(DISTINCT r.referred_id) as referrals_count
+        FROM bot_users u
+        LEFT JOIN applications a ON u.user_id = a.user_id
+        LEFT JOIN referrals r ON u.user_id = r.referrer_id
+        WHERE 1=1
+    """
+    params = []
+    
+    if search:
+        query += " AND (u.username ILIKE %s OR CAST(u.user_id AS TEXT) LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        query += " AND u.first_seen >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND u.first_seen <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    query += " GROUP BY u.id, u.user_id, u.username, u.first_seen, u.last_activity, u.source_id, u.has_application, u.is_blocked"
+    
+    if has_application == '1':
+        query += " HAVING COUNT(DISTINCT a.id) > 0"
+    elif has_application == '0':
+        query += " HAVING COUNT(DISTINCT a.id) = 0"
+    
+    query += " ORDER BY u.first_seen DESC"
+    
+    cur.execute(query, params)
     users = cur.fetchall()
     cur.close()
     conn.close()
     
-    return render_template('users.html', users=users)
+    # Создаем Excel файл в памяти
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Пользователи')
+    
+    # Заголовки
+    headers = ['ID', 'User ID', 'Username', 'Первый вход', 'Последняя активность', 
+               'Есть заявка', 'Рефералов', 'Источник']
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header)
+    
+    # Данные
+    for row, user in enumerate(users, 1):
+        worksheet.write(row, 0, user['id'])
+        worksheet.write(row, 1, str(user['user_id']))
+        worksheet.write(row, 2, user['username'] or '-')
+        worksheet.write(row, 3, user['first_seen'].strftime('%d.%m.%Y %H:%M') if user['first_seen'] else '-')
+        worksheet.write(row, 4, user['last_activity'].strftime('%d.%m.%Y %H:%M') if user['last_activity'] else '-')
+        worksheet.write(row, 5, 'Да' if user['has_application'] > 0 else 'Нет')
+        worksheet.write(row, 6, user['referrals_count'])
+        worksheet.write(row, 7, f"Источник {user['source_id']}" if user['source_id'] else 'Прямой')
+    
+    workbook.close()
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'users_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    )
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Удаляем в правильном порядке из-за foreign keys
+        cur.execute("DELETE FROM user_actions WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
+        cur.execute("DELETE FROM applications WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM bot_users WHERE user_id = %s", (user_id,))
+        
+        conn.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 @app.route('/logout')
 @login_required
