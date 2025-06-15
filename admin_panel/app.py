@@ -1629,61 +1629,7 @@ def delete_integration(integration_id):
         cur.close()
         conn.close()
 
-
 # ==================== ИНТЕГРАЦИИ С CRM ====================
-
-
-@app.route('/test-db')
-def test_db():
-    """Тест подключения к БД"""
-    try:
-        import psycopg2
-    except Exception as e:
-        raise e
-from psycopg2.extras import RealDictCursor
-        
-        
-        # Прямое подключение
-        conn = psycopg2.connect(
-            host='localhost',
-            database='crypto_course_db',
-            user='postgres',
-            password='',
-            )
-        cur = conn.cursor()
-        
-        # Тест 1: Простой запрос
-        cur.execute("SELECT 1")
-        test1 = cur.fetchone()
-        
-        # Тест 2: Запрос к integrations
-        cur.execute("SELECT COUNT(*) as count FROM integrations")
-        count = cur.fetchone()
-        
-        # Тест 3: Получение данных
-        cur.execute("SELECT id, name, type FROM integrations LIMIT 3")
-        rows = cur.fetchall()
-        
-        cur.close()
-        conn.close()
-        
-        return f"""
-        <h1>Тест БД</h1>
-        <p>Тест 1: {test1}</p>
-        <p>Количество интеграций: {count}</p>
-        <p>Данные:</p>
-        <pre>{rows}</pre>
-        <p>Тип rows: {type(rows)}</p>
-        <p>Тип первой строки: {type(rows[0]) if rows else 'Нет данных'}</p>
-        """
-        
-    except Exception as e:
-        import traceback
-        return f"""
-        <h1>Ошибка БД</h1>
-        <pre>{traceback.format_exc()}</pre>
-        """
-
 
 @app.route('/integrations')
 @login_required
@@ -1775,7 +1721,6 @@ def integrations():
         flash(f'Ошибка при загрузке интеграций: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
 
-
 @app.route('/integrations/create', methods=['GET', 'POST'])
 @login_required
 def create_integration():
@@ -1824,7 +1769,6 @@ def create_integration():
             return render_template('create_integration.html')
     
     return render_template('create_integration.html')
-
 
 @app.route('/integrations/<int:integration_id>/test', methods=['POST'])
 @login_required
@@ -1896,7 +1840,6 @@ def test_integration(integration_id):
         app.logger.error(f"Error testing integration: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
-
 @app.route('/integrations/<int:integration_id>/toggle', methods=['POST'])
 @login_required
 def toggle_integration(integration_id):
@@ -1929,7 +1872,6 @@ def toggle_integration(integration_id):
         app.logger.error(f"Error toggling integration: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
-
 @app.route('/integrations/<int:integration_id>/delete', methods=['POST'])
 @login_required
 def delete_integration(integration_id):
@@ -1957,9 +1899,6 @@ def delete_integration(integration_id):
         app.logger.error(f"Error deleting integration: {str(e)}")
         flash(f'Ошибка удаления: {str(e)}', 'danger')
         return redirect(url_for('integrations'))
-
-
-
 
 if __name__ == '__main__':
     init_admin()
