@@ -229,21 +229,192 @@ def dashboard():
 def applications():
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
+    
+    # Получаем параметры фильтров
+    search = request.args.get('search', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    country = request.args.get('country', '')
+    source_type = request.args.get('source_type', '')
+    preferred_time = request.args.get('preferred_time', '')
+    
+    # Базовый запрос с JOIN для получения username
+    query = """
         SELECT a.*, 
+               u.username,
                CASE 
                    WHEN a.referrer_id IS NOT NULL THEN 'Реферал'
-                   WHEN a.source_id IS NOT NULL THEN 'Баер'
+                   WHEN a.source_id IS NOT NULL THEN 'Источник ' || a.source_id
+                   ELSE 'Прямой'
+               END as source_type,
+               CASE 
+                   WHEN a.referrer_id IS NOT NULL THEN 
+                       (SELECT username FROM bot_users WHERE user_id = a.referrer_id LIMIT 1)
+                   ELSE NULL
+               END as referrer_username,
+               EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - a.created_at))/3600 as hours_ago
+        FROM applications a
+        LEFT JOIN bot_users u ON a.user_id = u.user_id
+        WHERE 1=1
+    """
+    params = []
+    
+    # Применяем фильтры
+    if search:
+        query += " AND (LOWER(a.full_name) LIKE LOWER(%s) OR a.phone LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        query += " AND a.created_at >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND a.created_at <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    if country:
+        query += " AND LOWER(a.country) LIKE LOWER(%s)"
+        params.append(f'%{country}%')
+    
+    if source_type:
+        if source_type == 'direct':
+            query += " AND a.referrer_id IS NULL AND a.source_id IS NULL"
+        elif source_type == 'referral':
+            query += " AND a.referrer_id IS NOT NULL"
+        elif source_type == 'source':
+            query += " AND a.source_id IS NOT NULL"
+    
+    if preferred_time:
+        query += " AND a.preferred_time = %s"
+        params.append(preferred_time)
+    
+    query += " ORDER BY a.created_at DESC LIMIT 50"
+    
+    cur.execute(query, params)
+    applications = cur.fetchall()
+    
+    # Статистика
+    # Заявок сегодня
+    today = get_local_time().date()
+    cur.execute("SELECT COUNT(*) as count FROM applications WHERE DATE(created_at) = %s", (today,))
+    today_count = cur.fetchone()['count']
+    
+    # Конверсия (заявки/пользователи за последние 7 дней)
+    week_ago = today - timedelta(days=7)
+    cur.execute("SELECT COUNT(*) as count FROM applications WHERE created_at >= %s", (week_ago,))
+    week_applications = cur.fetchone()['count']
+    cur.execute("SELECT COUNT(*) as count FROM bot_users WHERE first_seen >= %s", (week_ago,))
+    week_users = cur.fetchone()['count']
+    conversion_rate = (week_applications / week_users * 100) if week_users > 0 else 0
+    
+    # Список стран для фильтра
+    cur.execute("SELECT DISTINCT country FROM applications WHERE country IS NOT NULL ORDER BY country")
+    countries = [row['country'] for row in cur.fetchall()]
+    
+    cur.close()
+    conn.close()
+    
+    return render_template('applications.html', 
+                         applications=applications,
+                         today_count=today_count,
+                         conversion_rate=conversion_rate,
+                         countries=countries)
+
+@app.route('/export_applications')
+@login_required
+def export_applications():
+    import xlsxwriter
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Те же фильтры что и в applications()
+    search = request.args.get('search', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    country = request.args.get('country', '')
+    source_type = request.args.get('source_type', '')
+    preferred_time = request.args.get('preferred_time', '')
+    
+    query = """
+        SELECT a.*, 
+               u.username,
+               CASE 
+                   WHEN a.referrer_id IS NOT NULL THEN 'Реферал'
+                   WHEN a.source_id IS NOT NULL THEN 'Источник ' || a.source_id
                    ELSE 'Прямой'
                END as source_type
         FROM applications a
-        ORDER BY created_at DESC
-    """)
+        LEFT JOIN bot_users u ON a.user_id = u.user_id
+        WHERE 1=1
+    """
+    params = []
+    
+    if search:
+        query += " AND (LOWER(a.full_name) LIKE LOWER(%s) OR a.phone LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        query += " AND a.created_at >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND a.created_at <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    if country:
+        query += " AND LOWER(a.country) LIKE LOWER(%s)"
+        params.append(f'%{country}%')
+    
+    if source_type:
+        if source_type == 'direct':
+            query += " AND a.referrer_id IS NULL AND a.source_id IS NULL"
+        elif source_type == 'referral':
+            query += " AND a.referrer_id IS NOT NULL"
+        elif source_type == 'source':
+            query += " AND a.source_id IS NOT NULL"
+    
+    if preferred_time:
+        query += " AND a.preferred_time = %s"
+        params.append(preferred_time)
+    
+    query += " ORDER BY a.created_at DESC"
+    
+    cur.execute(query, params)
     applications = cur.fetchall()
     cur.close()
     conn.close()
     
-    return render_template('applications.html', applications=applications)
+    # Создаем Excel
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Заявки')
+    
+    # Заголовки
+    headers = ['ID', 'Имя', 'Страна', 'Телефон', 'Время звонка', 'Дата создания', 'Источник', 'Username']
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header)
+    
+    # Данные
+    for row, app in enumerate(applications, 1):
+        worksheet.write(row, 0, app['id'])
+        worksheet.write(row, 1, app['full_name'])
+        worksheet.write(row, 2, app['country'])
+        worksheet.write(row, 3, app['phone'])
+        worksheet.write(row, 4, app['preferred_time'])
+        worksheet.write(row, 5, format_datetime(app['created_at']))
+        worksheet.write(row, 6, app['source_type'])
+        worksheet.write(row, 7, f"@{app['username']}" if app['username'] else '-')
+    
+    workbook.close()
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'applications_{get_local_time().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    )
 
 @app.route('/users')
 @login_required

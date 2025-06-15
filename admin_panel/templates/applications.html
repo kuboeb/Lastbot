@@ -6,8 +6,105 @@
 <div class="container-fluid">
     <h1 class="h3 mb-4">Заявки на курс</h1>
     
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">Заявок сегодня</h5>
+                    <h2 class="mb-0">{{ today_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">Конверсия за неделю</h5>
+                    <h2 class="mb-0">{{ "%.1f"|format(conversion_rate) }}%</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" action="{{ url_for('applications') }}" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Поиск</label>
+                    <input type="text" class="form-control" name="search" 
+                           placeholder="Имя или телефон" 
+                           value="{{ request.args.get('search', '') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Дата от</label>
+                    <input type="date" class="form-control" name="date_from" 
+                           value="{{ request.args.get('date_from', '') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Дата до</label>
+                    <input type="date" class="form-control" name="date_to" 
+                           value="{{ request.args.get('date_to', '') }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Страна</label>
+                    <select class="form-select" name="country">
+                        <option value="">Все страны</option>
+                        {% for c in countries %}
+                        <option value="{{ c }}" {% if request.args.get('country') == c %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Источник</label>
+                    <select class="form-select" name="source_type">
+                        <option value="">Все</option>
+                        <option value="direct" {% if request.args.get('source_type') == 'direct' %}selected{% endif %}>Прямые</option>
+                        <option value="referral" {% if request.args.get('source_type') == 'referral' %}selected{% endif %}>Рефералы</option>
+                        <option value="source" {% if request.args.get('source_type') == 'source' %}selected{% endif %}>Источники</option>
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </div>
+            </form>
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <label class="form-label">Время звонка</label>
+                    <form method="GET" action="{{ url_for('applications') }}" class="d-flex gap-2">
+                        {% for key, value in request.args.items() if key != 'preferred_time' %}
+                        <input type="hidden" name="{{ key }}" value="{{ value }}">
+                        {% endfor %}
+                        <select class="form-select" name="preferred_time" onchange="this.form.submit()">
+                            <option value="">Все</option>
+                            <option value="9:00 - 12:00" {% if request.args.get('preferred_time') == '9:00 - 12:00' %}selected{% endif %}>9:00 - 12:00</option>
+                            <option value="12:00 - 15:00" {% if request.args.get('preferred_time') == '12:00 - 15:00' %}selected{% endif %}>12:00 - 15:00</option>
+                            <option value="15:00 - 18:00" {% if request.args.get('preferred_time') == '15:00 - 18:00' %}selected{% endif %}>15:00 - 18:00</option>
+                            <option value="18:00 - 21:00" {% if request.args.get('preferred_time') == '18:00 - 21:00' %}selected{% endif %}>18:00 - 21:00</option>
+                        </select>
+                    </form>
+                </div>
+                <div class="col-md-8 d-flex justify-content-end align-items-end">
+                    <a href="{{ url_for('applications') }}" class="btn btn-secondary me-2">
+                        <i class="bi bi-x-circle"></i> Сброс
+                    </a>
+                    <a href="{{ url_for('export_applications') }}?{{ request.query_string.decode() }}" 
+                       class="btn btn-success">
+                        <i class="bi bi-file-earmark-excel"></i> Экспорт в Excel
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Таблица заявок -->
     <div class="card">
         <div class="card-body">
+            <div class="alert alert-info mb-3">
+                Показано заявок: <strong>{{ applications|length }}</strong> (максимум 50)
+            </div>
             <div class="table-responsive">
                 <table class="table table-hover">
                     <thead>
@@ -16,9 +113,10 @@
                             <th>Имя</th>
                             <th>Страна</th>
                             <th>Телефон</th>
-                            <th>Время</th>
-                            <th>Дата</th>
+                            <th>Время звонка</th>
+                            <th>Создана</th>
                             <th>Источник</th>
+                            <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -27,14 +125,48 @@
                             <td>{{ app.id }}</td>
                             <td>{{ app.full_name }}</td>
                             <td>{{ app.country }}</td>
-                            <td>{{ app.phone }}</td>
-                            <td>{{ app.preferred_time }}</td>
-                            <td>{{ app.created_at|datetime }}</td>
                             <td>
-                                {% if app.source_type %}
+                                <span class="phone-number">{{ app.phone }}</span>
+                                <button class="btn btn-sm btn-outline-secondary copy-phone ms-2" 
+                                        data-phone="{{ app.phone }}"
+                                        title="Копировать">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </td>
+                            <td>{{ app.preferred_time }}</td>
+                            <td>
+                                <span title="{{ app.created_at|datetime }}">
+                                    {% if app.hours_ago < 1 %}
+                                        только что
+                                    {% elif app.hours_ago < 24 %}
+                                        {{ "%.0f"|format(app.hours_ago) }}ч назад
+                                    {% else %}
+                                        {{ "%.0f"|format(app.hours_ago / 24) }}д назад
+                                    {% endif %}
+                                </span>
+                            </td>
+                            <td>
+                                {% if app.referrer_id %}
+                                    <span class="badge bg-success">
+                                        Реферал
+                                        {% if app.referrer_username %}
+                                            от @{{ app.referrer_username }}
+                                        {% endif %}
+                                    </span>
+                                {% elif app.source_id %}
                                     <span class="badge bg-info">{{ app.source_type }}</span>
                                 {% else %}
                                     <span class="badge bg-secondary">Прямой</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if app.username %}
+                                <a href="https://t.me/{{ app.username }}" 
+                                   target="_blank" 
+                                   class="btn btn-sm btn-primary"
+                                   title="Открыть в Telegram">
+                                    <i class="bi bi-telegram"></i>
+                                </a>
                                 {% endif %}
                             </td>
                         </tr>
@@ -45,4 +177,25 @@
         </div>
     </div>
 </div>
+
+<script>
+// Копирование телефона
+document.querySelectorAll('.copy-phone').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const phone = this.dataset.phone;
+        navigator.clipboard.writeText(phone).then(() => {
+            // Меняем иконку на галочку
+            const icon = this.querySelector('i');
+            icon.classList.remove('bi-clipboard');
+            icon.classList.add('bi-check');
+            
+            // Возвращаем обратно через секунду
+            setTimeout(() => {
+                icon.classList.remove('bi-check');
+                icon.classList.add('bi-clipboard');
+            }, 1000);
+        });
+    });
+});
+</script>
 {% endblock %}
