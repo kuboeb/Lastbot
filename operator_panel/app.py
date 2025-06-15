@@ -244,9 +244,6 @@ def format_phone(phone):
         return f"{phone[:4]}***{phone[-4:]}"
     return phone
 
-@app.before_first_request
-async def startup():
-    """Инициализация при первом запросе"""
     await db_manager.connect()
     
     # Создаем оператора по умолчанию если его нет
@@ -265,6 +262,10 @@ async def startup():
             db_session.add(operator)
             await db_session.commit()
             logger.info("Default operator created")
+
+# Initialize database on startup
+import asyncio
+asyncio.run(init_db())
 
 if __name__ == '__main__':
     app.run(
