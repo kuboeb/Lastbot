@@ -744,11 +744,6 @@ def get_text_by_key(key):
         return jsonify({'text': result['text']})
     return jsonify({'error': 'Text not found'}), 404
 
-@app.route('/broadcast')
-@login_required
-def broadcast():
-    return render_template('broadcast.html')
-
 @app.route('/system')
 @login_required
 def system():
