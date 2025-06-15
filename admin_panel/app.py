@@ -1039,6 +1039,10 @@ if __name__ == '__main__':
 @login_required
 def delete_traffic_source(source_id):
     """Удалить источник трафика"""
+    print(f"Delete request for source {source_id}")
+    print(f"Request method: {request.method}")
+    print(f"Request headers: {dict(request.headers)}")
+    
     conn = get_db_connection()
     cur = conn.cursor()
     

@@ -246,7 +246,7 @@ document.getElementById('platform').addEventListener('change', function() {
     document.getElementById('platformSettings').innerHTML = platformSettings[platform] || '';
 });
 
-// Функция для AJAX запросов (с учетом всех проблем)
+// Функция для AJAX запросов
 async function makeRequest(url, method = 'POST', data = null) {
     try {
         const options = {
@@ -264,17 +264,13 @@ async function makeRequest(url, method = 'POST', data = null) {
         
         const response = await fetch(url, options);
         
-        // Проверяем тип ответа
         const contentType = response.headers.get("content-type");
         
-        // Если вернулся HTML (не JSON), значит проблема с сессией
         if (contentType && contentType.includes("text/html")) {
-            // Перезагружаем страницу, чтобы перенаправить на логин
             window.location.reload();
             return null;
         }
         
-        // Если не JSON, но и не HTML
         if (!contentType || !contentType.includes("application/json")) {
             throw new Error("Неверный формат ответа от сервера");
         }
@@ -317,7 +313,6 @@ async function createSource() {
         return;
     }
     
-    // Собираем настройки платформы
     const settings = {};
     const settingsContainer = document.getElementById('platformSettings');
     settingsContainer.querySelectorAll('input, textarea').forEach(input => {
@@ -372,26 +367,35 @@ async function toggleSource(sourceId) {
 
 // Удалить источник
 async function deleteSource(sourceId, sourceName) {
+    console.log('Удаление источника:', sourceId, sourceName);
+    
     if (!confirm(`Удалить источник "${sourceName}"?`)) return;
     
     try {
+        console.log('Отправляем запрос на удаление...');
         const result = await makeRequest(`/traffic-sources/${sourceId}/delete`);
+        console.log('Ответ сервера:', result);
         
         if (result) {
             if (result.success) {
+                console.log('Успешно удалено, перезагружаем страницу');
                 window.location.reload();
             } else if (result.confirm_required) {
                 if (confirm(`Источник имеет ${result.events_count} связанных событий. Удалить все данные?`)) {
+                    console.log('Принудительное удаление...');
                     const forceResult = await makeRequest(`/traffic-sources/${sourceId}/force-delete`);
+                    console.log('Результат принудительного удаления:', forceResult);
                     if (forceResult && forceResult.success) {
                         window.location.reload();
                     }
                 }
             } else {
+                console.error('Ошибка от сервера:', result.error);
                 alert('Ошибка: ' + result.error);
             }
         }
     } catch (error) {
+        console.error('Ошибка удаления:', error);
         alert('Ошибка удаления: ' + error.message);
     }
 }
