@@ -12,16 +12,16 @@ from utils import messages
 def get_reply_keyboard_new_user():
     """Reply клавиатура для новых пользователей"""
     keyboard = [
-        [KeyboardButton(text=messages.BTN_MAIN_MENU)],
-        [KeyboardButton(text=messages.BTN_ABOUT_COURSE)]
+        [KeyboardButton(text="📋 Программа"), KeyboardButton(text="💬 Отзывы")],
+        [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="🏠 Меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 def get_reply_keyboard_existing_user():
     """Reply клавиатура для существующих пользователей"""
     keyboard = [
-        [KeyboardButton(text=messages.BTN_MAIN_MENU)],
-        [KeyboardButton(text=messages.BTN_REFERRAL)]
+        [KeyboardButton(text="💰 Реферальная ссылка"), KeyboardButton(text="📊 Мои рефералы")],
+        [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="�� Меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
@@ -32,22 +32,26 @@ def get_back_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
+def get_registration_keyboard():
+    """Reply клавиатура для процесса регистрации"""
+    keyboard = [
+        [KeyboardButton(text=messages.BTN_BACK)]
+    ]
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
 # Inline клавиатуры
 
 def get_main_menu_new_user():
     """Главное меню для новых пользователей"""
     keyboard = [
+        [InlineKeyboardButton(text="🚀 Записаться на курс", callback_data="apply")],
         [
-            InlineKeyboardButton(text="🚀 Записаться на курс", callback_data="apply"),
-            InlineKeyboardButton(text="📋 Программа курса", callback_data="program")
+            InlineKeyboardButton(text="📚 О курсе", callback_data="about_course"),
+            InlineKeyboardButton(text="💬 Отзывы", callback_data="reviews")
         ],
         [
-            InlineKeyboardButton(text="💬 Отзывы (277)", callback_data="reviews"),
-            InlineKeyboardButton(text="❓ Частые вопросы", callback_data="faq")
-        ],
-        [
-            InlineKeyboardButton(text="💎 Почему крипто?", callback_data="why_crypto"),
-            InlineKeyboardButton(text="⭐ Истории успеха", callback_data="success_stories")
+            InlineKeyboardButton(text="❓ FAQ", callback_data="faq"),
+            InlineKeyboardButton(text="🎯 Программа", callback_data="program")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -55,20 +59,15 @@ def get_main_menu_new_user():
 def get_main_menu_existing_user():
     """Главное меню для пользователей с заявкой"""
     keyboard = [
+        [InlineKeyboardButton(text="💰 50€ за друга", callback_data="referral_info")],
+        [InlineKeyboardButton(text="📊 Мои рефералы", callback_data="my_referrals")],
         [
-            InlineKeyboardButton(text="💰 50€ за друга", callback_data="referral_info"),
-            InlineKeyboardButton(text="📊 Мои рефералы", callback_data="my_referrals")
+            InlineKeyboardButton(text="📚 О курсе", callback_data="about_course"),
+            InlineKeyboardButton(text="💬 Отзывы", callback_data="reviews")
         ],
         [
-            InlineKeyboardButton(text="📋 Программа курса", callback_data="program"),
-            InlineKeyboardButton(text="💬 Отзывы (277)", callback_data="reviews")
-        ],
-        [
-            InlineKeyboardButton(text="❓ Частые вопросы", callback_data="faq"),
-            InlineKeyboardButton(text="💎 Почему крипто?", callback_data="why_crypto")
-        ],
-        [
-            InlineKeyboardButton(text="⭐ Истории успеха", callback_data="success_stories")
+            InlineKeyboardButton(text="❓ FAQ", callback_data="faq"),
+            InlineKeyboardButton(text="🎯 Программа", callback_data="program")
         ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
@@ -114,8 +113,7 @@ def get_confirmation_keyboard():
         [
             InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm"),
             InlineKeyboardButton(text="✏️ Изменить", callback_data="edit")
-        ],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_menu")]
+        ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 

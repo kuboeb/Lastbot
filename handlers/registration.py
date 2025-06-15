@@ -14,7 +14,8 @@ from keyboards.keyboards import (
     get_time_selection_keyboard,
     get_confirmation_keyboard,
     get_back_button,
-    get_main_menu_existing_user
+    get_main_menu_existing_user,
+    get_registration_keyboard
 )
 from utils import messages
 from utils.datetime_utils import get_current_datetime
@@ -72,11 +73,19 @@ async def start_registration(message: Message, state: FSMContext):
         await session.commit()
     
     await state.set_state(RegistrationStates.waiting_for_name)
-    await message.answer(messages.ASK_NAME)
+    await message.answer(messages.ASK_NAME, reply_markup=get_registration_keyboard())
 
 @router.message(RegistrationStates.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
     """Обработка имени"""
+    # Проверяем, не нажата ли кнопка "Назад"
+    if message.text == messages.BTN_BACK:
+        await state.clear()
+        await message.answer("Регистрация отменена. Возвращаемся в главное меню.")
+        from handlers.start import main_menu
+        await main_menu(message, state)
+        return
+    
     name = message.text.strip()
     
     # Проверка имени
@@ -96,11 +105,17 @@ async def process_name(message: Message, state: FSMContext):
         await session.commit()
     
     await state.set_state(RegistrationStates.waiting_for_country)
-    await message.answer(messages.ASK_COUNTRY)
+    await message.answer(messages.ASK_COUNTRY, reply_markup=get_registration_keyboard())
 
 @router.message(RegistrationStates.waiting_for_country)
 async def process_country(message: Message, state: FSMContext):
     """Обработка страны"""
+    # Проверяем, не нажата ли кнопка "Назад"
+    if message.text == messages.BTN_BACK:
+        await state.set_state(RegistrationStates.waiting_for_name)
+        await message.answer(messages.ASK_NAME, reply_markup=get_registration_keyboard())
+        return
+    
     country = message.text.strip()
     
     # Проверка страны
@@ -123,11 +138,17 @@ async def process_country(message: Message, state: FSMContext):
         await session.commit()
     
     await state.set_state(RegistrationStates.waiting_for_phone)
-    await message.answer(messages.ASK_PHONE)
+    await message.answer(messages.ASK_PHONE, reply_markup=get_registration_keyboard())
 
 @router.message(RegistrationStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
     """Обработка телефона"""
+    # Проверяем, не нажата ли кнопка "Назад"
+    if message.text == messages.BTN_BACK:
+        await state.set_state(RegistrationStates.waiting_for_country)
+        await message.answer(messages.ASK_COUNTRY, reply_markup=get_registration_keyboard())
+        return
+    
     phone = message.text.strip()
     
     # Убираем все символы кроме цифр и +
@@ -245,7 +266,10 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
     
     # Отправляем финальное сообщение пользователю
     await callback.message.edit_text(
-        messages.REGISTRATION_COMPLETE.format(referral_link=referral_link),
+        messages.REGISTRATION_COMPLETE.format(
+            name=data['full_name'],
+            referral_link=referral_link
+        ),
         reply_markup=get_main_menu_existing_user()
     )
     
@@ -260,21 +284,11 @@ async def edit_registration(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 @router.message(F.text == messages.BTN_BACK)
-async def back_in_registration(message: Message, state: FSMContext):
-    """Кнопка назад в процессе регистрации"""
+async def handle_back_button(message: Message, state: FSMContext):
+    """Обработка кнопки Назад вне состояний регистрации"""
     current_state = await state.get_state()
     
-    if current_state == RegistrationStates.waiting_for_name:
-        await state.clear()
-        await message.answer("Регистрация отменена. Возвращаемся в главное меню.")
-        # Вызываем обработчик главного меню
+    if not current_state:
+        # Если нет активного состояния, возвращаемся в главное меню
         from handlers.start import main_menu
         await main_menu(message, state)
-    
-    elif current_state == RegistrationStates.waiting_for_country:
-        await state.set_state(RegistrationStates.waiting_for_name)
-        await message.answer(messages.ASK_NAME)
-    
-    elif current_state == RegistrationStates.waiting_for_phone:
-        await state.set_state(RegistrationStates.waiting_for_country)
-        await message.answer(messages.ASK_COUNTRY)

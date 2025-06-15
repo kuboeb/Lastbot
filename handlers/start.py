@@ -158,7 +158,7 @@ async def cmd_start(message: Message, state: FSMContext):
                 reply_markup=get_main_menu_new_user()
             )
 
-@router.message(F.text == messages.BTN_MAIN_MENU)
+@router.message(F.text == "🏠 Меню")
 async def main_menu(message: Message, state: FSMContext):
     """Возврат в главное меню"""
     await state.clear()
@@ -179,6 +179,35 @@ async def main_menu(message: Message, state: FSMContext):
                 "Главное меню:",
                 reply_markup=get_main_menu_new_user()
             )
+
+# Обработчики для Reply кнопок
+@router.message(F.text == "📋 Программа")
+async def show_program_button(message: Message):
+    """Показать программу курса через кнопку"""
+    from handlers.info import show_program
+    await show_program(message)
+
+@router.message(F.text == "💬 Отзывы")
+async def show_reviews_button(message: Message):
+    """Показать отзывы через кнопку"""
+    from handlers.info import show_reviews
+    await show_reviews(message)
+
+@router.message(F.text == "❓ Помощь")
+async def show_help_button(message: Message):
+    """Показать помощь через кнопку"""
+    await message.answer(messages.HELP_MESSAGE)
+
+@router.message(F.text == "💰 Реферальная ссылка")
+async def show_referral_link(message: Message):
+    """Показать реферальную ссылку"""
+    await cmd_ref(message)
+
+@router.message(F.text == "📊 Мои рефералы")
+async def show_my_referrals_button(message: Message):
+    """Показать моих рефералов"""
+    from handlers.info import show_my_referrals
+    await show_my_referrals(message)
 
 @router.callback_query(F.data == "back_to_menu")
 async def back_to_menu(callback: CallbackQuery, state: FSMContext):
