@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Создать интеграцию{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-plug"></i> Настройка интеграции с CRM</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Название интеграции</label>
+                            <input type="text" class="form-control" name="name" 
+                                   placeholder="Например: AlphaCRM - Основная" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Тип CRM</label>
+                            <select class="form-control" name="type" id="crm_type" required>
+                                <option value="">Выберите CRM</option>
+                                <option value="alphacrm">AlphaCRM</option>
+                            </select>
+                        </div>
+                        
+                        <div id="alphacrm_settings" style="display: none;">
+                            <h5 class="mb-3">Настройки AlphaCRM</h5>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Domain</label>
+                                <input type="text" class="form-control" name="domain" 
+                                       value="api.alphacrm.cc" readonly>
+                                <small class="text-muted">Основной домен API</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Affiliate ID (aff_id)</label>
+                                <input type="text" class="form-control" name="aff_id" 
+                                       placeholder="Введите ваш Affiliate ID" required>
+                                <small class="text-muted">Получите у вашего партнера</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">API Key</label>
+                                <input type="text" class="form-control" name="api_key" 
+                                       placeholder="Введите API ключ" required>
+                                <small class="text-muted">Ключ для авторизации API запросов</small>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Source (источник)</label>
+                                <input type="text" class="form-control" name="source" 
+                                       value="telegram_bot" required>
+                                <small class="text-muted">Название источника/воронки</small>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <h6>Документация AlphaCRM:</h6>
+                                <p class="mb-1">Endpoint: POST https://api.alphacrm.cc/api/v2/leads</p>
+                                <p class="mb-0">
+                                    <a href="https://documenter.getpostman.com/view/32227481/2sA3BuVo4m" 
+                                       target="_blank" class="text-decoration-none">
+                                        <i class="fas fa-external-link-alt"></i> Полная документация API
+                                    </a>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="/integrations" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Назад
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Сохранить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('crm_type').addEventListener('change', function() {
+    const alphaSettings = document.getElementById('alphacrm_settings');
+    
+    if (this.value === 'alphacrm') {
+        alphaSettings.style.display = 'block';
+        // Делаем поля обязательными
+        alphaSettings.querySelectorAll('input').forEach(input => {
+            if (input.name !== 'domain') {
+                input.required = true;
+            }
+        });
+    } else {
+        alphaSettings.style.display = 'none';
+        // Убираем обязательность
+        alphaSettings.querySelectorAll('input').forEach(input => {
+            input.required = false;
+        });
+    }
+});
+</script>
+{% endblock %}
