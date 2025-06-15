@@ -80,3 +80,4 @@ loguru==0.7.2
 Pillow==10.1.0
 matplotlib==3.8.2
 seaborn==0.13.0
+nest-asyncio==1.5.6

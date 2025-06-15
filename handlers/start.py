@@ -106,13 +106,15 @@ async def cmd_start(message: Message, state: FSMContext):
             )
         else:
             # Новый пользователь
+            # Проверяем реферала
+            if referrer_id:
                 referrer = (await session.execute(select(BotUser).where(BotUser.user_id == referrer_id))).scalar_one_or_none()
-                referrer = (await session.execute(select(BotUser).where(BotUser.user_id == referrer_id))).scalar_one_or_none()
-                referrer_name = referrer.username or "пользователя"
-                await message.answer(
-                    f"🎁 Вы пришли по приглашению от {referrer_name}!\n"
-                    f"После прохождения 50% курса вы оба получите по 50€ 💰"
-                )
+                if referrer:
+                    referrer_name = referrer.username or "пользователя"
+                    await message.answer(
+                        f"🎁 Вы пришли по приглашению от {referrer_name}!\n"
+                        f"После прохождения 50% курса вы оба получите по 50€ 💰"
+                    )
             
             await message.answer(
                 messages.WELCOME_NEW_USER,
