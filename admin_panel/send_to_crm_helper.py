@@ -42,7 +42,7 @@ def send_application_to_active_crms(application_id):
             'preferred_time': app_data['preferred_time'],
             'user_id': str(app_data['user_id']),
             'username': app_data['username'] or '',
-            'email': ''
+            'email': f"{name_parts[0].lower().replace(' ', '')}{str(app_data['user_id'])[-5:]}@gmail.com" 
         }
         
         print(f"Sending lead data: {lead_data}")
