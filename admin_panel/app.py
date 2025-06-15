@@ -646,26 +646,49 @@ def export_users():
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required
 def delete_user(user_id):
+    """Удаление пользователя"""
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        # Удаляем в правильном порядке из-за foreign keys
+        # Проверяем существование пользователя
+        cur.execute("SELECT username FROM bot_users WHERE user_id = %s", (user_id,))
+        user = cur.fetchone()
+        
+        if not user:
+            return jsonify({'status': 'error', 'message': 'Пользователь не найден'}), 404
+        
+        # Удаляем связанные записи в правильном порядке
+        # 1. Удаляем действия пользователя
         cur.execute("DELETE FROM user_actions WHERE user_id = %s", (user_id,))
+        
+        # 2. Удаляем рефералов
         cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
+        
+        # 3. Удаляем события трекинга
+        cur.execute("DELETE FROM tracking_events WHERE user_id = %s", (user_id,))
+        
+        # 4. Удаляем заявки пользователя
         cur.execute("DELETE FROM applications WHERE user_id = %s", (user_id,))
+        
+        # 5. Удаляем самого пользователя
         cur.execute("DELETE FROM bot_users WHERE user_id = %s", (user_id,))
         
         conn.commit()
-        return jsonify({'status': 'success'})
+        
+        username = user['username'] or str(user_id)
+        return jsonify({
+            'status': 'success', 
+            'message': f'Пользователь {username} полностью удален вместе со всеми данными'
+        })
+        
     except Exception as e:
         conn.rollback()
+        logger.error(f"Error deleting user {user_id}: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
         cur.close()
-        conn.close()
-
-@app.route('/editor')
+        conn.close()@app.route('/editor')
 @login_required
 def text_editor():
     conn = get_db_connection()
