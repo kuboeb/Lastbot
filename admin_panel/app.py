@@ -36,14 +36,14 @@ def load_user(user_id):
     return None
 
 async def get_admin_by_id(admin_id):
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         result = await session.execute(
             select(Admin).where(Admin.id == admin_id)
         )
         return result.scalar_one_or_none()
 
 async def get_admin_by_username(username):
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         result = await session.execute(
             select(Admin).where(Admin.username == username)
         )
@@ -80,7 +80,7 @@ def index():
 @app.route('/dashboard')
 @login_required
 async def dashboard():
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         # Получаем статистику
         today = datetime.now().date()
         week_ago = today - timedelta(days=7)
@@ -129,7 +129,7 @@ async def dashboard():
 @app.route('/applications')
 @login_required
 async def applications():
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         apps = await session.execute(
             select(Application).order_by(Application.created_at.desc())
         )
@@ -139,7 +139,7 @@ async def applications():
 @app.route('/users')
 @login_required
 async def users():
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         users = await session.execute(
             select(BotUser).order_by(BotUser.first_seen.desc())
         )
@@ -149,7 +149,7 @@ async def users():
 @app.route('/editor')
 @login_required
 async def editor():
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         texts = await session.execute(
             select(BotText).order_by(BotText.category, BotText.key)
         )
@@ -164,7 +164,7 @@ def broadcast():
 @app.route('/traffic-sources')
 @login_required
 async def traffic_sources():
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         sources = await session.execute(
             select(TrafficSource).order_by(TrafficSource.created_at.desc())
         )
@@ -186,7 +186,7 @@ def toggle_bot():
 @app.route('/api/stats/funnel')
 @login_required
 async def funnel_stats():
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         # Здесь логика получения статистики воронки
         stats = {
             'started': 1000,
@@ -201,7 +201,7 @@ async def funnel_stats():
 # Инициализация базы данных при запуске
 async def init_database():
     await db_manager.connect()
-    async with db_manager.session() as session:
+    async with db_manager.get_session() as session:
         # Проверяем, есть ли админ
         result = await session.execute(
             select(Admin).where(Admin.username == config.ADMIN_USERNAME)
