@@ -54,7 +54,7 @@ def send_to_crm(integration_type, settings, lead_data, application_id=None):
                 'first_name': lead_data.get('first_name', ''),
                 'last_name': lead_data.get('last_name', ''),
                 'phone': lead_data.get('phone', ''),
-                'email': lead_data.get('email') or f"{transliterate(lead_data.get('first_name', 'user'))}{lead_data.get('user_id', '12345')[-5:]}@gmail.com",  # Генерируем уникальный email
+                'email': lead_data.get('email') or f"user{lead_data.get('user_id', '12345')}@gmail.com",  # Генерируем уникальный email
                 'ip': lead_data.get('ip', '127.0.0.1'),
                 'source': settings.get('source', 'telegram_bot'),
                 'sub1': f"{lead_data.get('country', '')}, {lead_data.get('phone', '')}",
