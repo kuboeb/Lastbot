@@ -34,6 +34,15 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=config.BOT_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
+# Регистрация админских команд
+try:
+    from admin_commands import admin_router
+    dp.include_router(admin_router)
+    logger.info("Admin commands registered")
+except Exception as e:
+    logger.error(f"Failed to register admin commands: {e}")
+
+
 # Регистрируем middleware
 dp.message.middleware(LoggingMiddleware())
 dp.message.middleware(AntifloodMiddleware())
@@ -108,10 +117,3 @@ if __name__ == "__main__":
         logger.error(f"Fatal error: {e}")
         sys.exit(1)
 
-# Регистрация админских команд
-try:
-    from admin_commands import register_admin_handlers
-    register_admin_handlers(dp)
-    logger.info("Admin commands registered")
-except Exception as e:
-    logger.error(f"Failed to register admin commands: {e}")
