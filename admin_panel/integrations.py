@@ -39,14 +39,16 @@ def send_to_crm(integration_type, settings, lead_data, application_id=None):
                 return {
                     'success': True, 
                     'response': response.json() if response.text else {},
-                    'status_code': response.status_code
+                    'status_code': response.status_code,
+                    'payload': payload
                 }
             else:
                 return {
                     'success': False, 
                     'error': f'HTTP {response.status_code}: {response.text}',
-                    'status_code': response.status_code
+                    'status_code': response.status_code,
+                    'payload': payload
                 }
                 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {'success': False, 'error': str(e), 'payload': payload if 'payload' in locals() else {}}

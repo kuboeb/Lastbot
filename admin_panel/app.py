@@ -1595,7 +1595,7 @@ def test_integration(integration_id):
         """, (
             integration_id,
             'success' if result.get('success') else 'error',
-            json.dumps(test_data),
+            json.dumps(result.get('payload', test_data)),
             json.dumps(result.get('response', {})),
             result.get('error', '')
         ))
@@ -1866,7 +1866,7 @@ def test_integration(integration_id):
         """, (
             integration_id,
             'success' if result.get('success') else 'error',
-            json.dumps(test_lead),
+            json.dumps(result.get('payload', test_lead)),
             json.dumps(result.get('response', {})),
             result.get('error', '')
         ))
