@@ -1637,61 +1637,86 @@ def delete_integration(integration_id):
 def integrations():
     """Страница управления интеграциями CRM"""
     try:
-        # Простая проверка подключения к БД
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Проверяем, что таблица существует
-        cur.execute("SELECT 1 FROM integrations LIMIT 1")
-        cur.fetchone()
-        
-        # Получаем данные без JOIN с логами
+        # Получаем интеграции
         cur.execute("""
             SELECT id, name, type, settings, is_active, created_at
             FROM integrations
             ORDER BY id DESC
         """)
         
-        rows = cur.fetchall()
         integrations_list = []
+        rows = cur.fetchall()
         
         for row in rows:
+            # row - это кортеж, обращаемся по индексу
             integration = {
                 'id': row[0],
                 'name': row[1],
                 'type': row[2],
                 'settings': row[3] or {},
                 'is_active': row[4],
-                'created_at': row[5],
-                'stats': {
+                'created_at': row[5]
+            }
+            
+            # Скрываем API ключ
+            if 'api_key' in integration['settings']:
+                api_key = str(integration['settings'].get('api_key', ''))
+                if len(api_key) > 10:
+                    integration['settings']['api_key'] = api_key[:10] + '...'
+            
+            # Получаем статистику
+            try:
+                cur.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        COUNT(CASE WHEN status = 'success' THEN 1 END) as success,
+                        COUNT(CASE WHEN status = 'error' THEN 1 END) as error,
+                        MAX(created_at) as last_send
+                    FROM integration_logs
+                    WHERE integration_id = %s
+                """, (integration['id'],))
+                
+                stats = cur.fetchone()
+                if stats:
+                    integration['stats'] = {
+                        'total': stats[0] or 0,
+                        'success': stats[1] or 0,
+                        'error': stats[2] or 0,
+                        'last_send': stats[3]
+                    }
+                else:
+                    integration['stats'] = {
+                        'total': 0,
+                        'success': 0,
+                        'error': 0,
+                        'last_send': None
+                    }
+            except:
+                # Если ошибка со статистикой, ставим нули
+                integration['stats'] = {
                     'total': 0,
                     'success': 0,
                     'error': 0,
                     'last_send': None
                 }
-            }
+            
             integrations_list.append(integration)
         
         cur.close()
         conn.close()
         
-        # Если нет интеграций, все равно показываем страницу
         return render_template('integrations.html', integrations=integrations_list)
         
     except Exception as e:
-        # Более детальная отладка
-        import traceback
-        error_details = traceback.format_exc()
-        app.logger.error(f"Error in integrations: {str(e)}")
-        app.logger.error(f"Traceback: {error_details}")
+        if 'conn' in locals():
+            conn.close()
         
-        # Попробуем вернуть простую HTML страницу
-        return f"""
-        <h1>Ошибка в интеграциях</h1>
-        <p>Ошибка: {str(e)}</p>
-        <pre>{error_details}</pre>
-        <a href="/dashboard">Вернуться на главную</a>
-        """
+        app.logger.error(f"Error in integrations: {str(e)}")
+        flash(f'Ошибка при загрузке интеграций: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/integrations/create', methods=['GET', 'POST'])
