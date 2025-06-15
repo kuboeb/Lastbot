@@ -237,8 +237,10 @@ def applications():
     country = request.args.get('country', '')
     source_type = request.args.get('source_type', '')
     preferred_time = request.args.get('preferred_time', '')
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
     
-    # Базовый запрос с JOIN для получения username
+    # Базовый запрос
     query = """
         SELECT a.*, 
                u.username,
@@ -288,18 +290,27 @@ def applications():
         query += " AND a.preferred_time = %s"
         params.append(preferred_time)
     
-    query += " ORDER BY a.created_at DESC LIMIT 50"
+    # Получаем общее количество для пагинации
+    count_query = "SELECT COUNT(*) as total FROM (" + query + ") as subquery"
+    cur.execute(count_query, params)
+    total_count = cur.fetchone()['total']
+    
+    # Добавляем пагинацию
+    offset = (page - 1) * per_page
+    query += " ORDER BY a.created_at DESC LIMIT %s OFFSET %s"
+    params.extend([per_page, offset])
     
     cur.execute(query, params)
     applications = cur.fetchall()
     
+    # Вычисляем страницы
+    total_pages = (total_count + per_page - 1) // per_page
+    
     # Статистика
-    # Заявок сегодня
     today = get_local_time().date()
     cur.execute("SELECT COUNT(*) as count FROM applications WHERE DATE(created_at) = %s", (today,))
     today_count = cur.fetchone()['count']
     
-    # Конверсия (заявки/пользователи за последние 7 дней)
     week_ago = today - timedelta(days=7)
     cur.execute("SELECT COUNT(*) as count FROM applications WHERE created_at >= %s", (week_ago,))
     week_applications = cur.fetchone()['count']
@@ -318,7 +329,11 @@ def applications():
                          applications=applications,
                          today_count=today_count,
                          conversion_rate=conversion_rate,
-                         countries=countries)
+                         countries=countries,
+                         page=page,
+                         total_pages=total_pages,
+                         total_count=total_count,
+                         per_page=per_page)
 
 @app.route('/export_applications')
 @login_required
