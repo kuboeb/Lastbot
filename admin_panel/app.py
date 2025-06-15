@@ -430,7 +430,7 @@ def export_applications():
     worksheet = workbook.add_worksheet('Заявки')
     
     # Заголовки
-    headers = ['ID', 'Имя', 'Страна', 'Телефон', 'Время звонка', 'Дата создания', 'Источник', 'Username']
+    headers = ['ID', 'Имя', 'Username', 'Страна', 'Телефон', 'Время звонка', 'Дата создания', 'Источник']
     for col, header in enumerate(headers):
         worksheet.write(0, col, header)
     
@@ -438,12 +438,12 @@ def export_applications():
     for row, app in enumerate(applications, 1):
         worksheet.write(row, 0, app['id'])
         worksheet.write(row, 1, app['full_name'])
-        worksheet.write(row, 2, app['country'])
-        worksheet.write(row, 3, app['phone'])
-        worksheet.write(row, 4, app['preferred_time'])
-        worksheet.write(row, 5, format_datetime(app['created_at']))
-        worksheet.write(row, 6, app['source_type'])
-        worksheet.write(row, 7, f"@{app['username']}" if app['username'] else '-')
+        worksheet.write(row, 2, f"@{app['username']}" if app['username'] else '-')
+        worksheet.write(row, 3, app['country'])
+        worksheet.write(row, 4, app['phone'])
+        worksheet.write(row, 5, app['preferred_time'])
+        worksheet.write(row, 6, format_datetime(app['created_at']))
+        worksheet.write(row, 7, app['source_type'])
     
     workbook.close()
     output.seek(0)
@@ -616,8 +616,7 @@ def export_users():
     worksheet = workbook.add_worksheet('Пользователи')
     
     # Заголовки
-    headers = ['ID', 'User ID', 'Username', 'Первый вход', 'Последняя активность', 
-               'Есть заявка', 'Рефералов', 'Источник']
+    headers = ['ID', 'Имя', 'Username', 'Страна', 'Телефон', 'Время звонка', 'Дата создания', 'Источник']
     for col, header in enumerate(headers):
         worksheet.write(0, col, header)
     

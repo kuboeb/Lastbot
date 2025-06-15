@@ -150,6 +150,7 @@
                         <tr>
                             <th>ID</th>
                             <th>Имя</th>
+                            <th>Username</th>
                             <th>Страна</th>
                             <th>Телефон</th>
                             <th>Время звонка</th>
@@ -163,6 +164,15 @@
                         <tr>
                             <td>{{ app.id }}</td>
                             <td>{{ app.full_name }}</td>
+                            <td>
+                                {% if app.username %}
+                                    <a href="https://t.me/{{ app.username }}" target="_blank">
+                                        @{{ app.username }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
                             <td>{{ app.country }}</td>
                             <td>
                                 <span class="phone-number">{{ app.phone }}</span>
@@ -199,14 +209,11 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if app.username %}
-                                <a href="https://t.me/{{ app.username }}" 
-                                   target="_blank" 
-                                   class="btn btn-sm btn-primary"
-                                   title="Открыть в Telegram">
-                                    <i class="bi bi-telegram"></i>
-                                </a>
-                                {% endif %}
+                                <button class="btn btn-sm btn-info view-details" 
+                                        data-app-id="{{ app.id }}"
+                                        title="Подробнее">
+                                    <i class="bi bi-eye"></i>
+                                </button>
                             </td>
                         </tr>
                         {% endfor %}
