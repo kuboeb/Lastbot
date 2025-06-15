@@ -15,7 +15,8 @@ from keyboards.keyboards import (
     get_confirmation_keyboard,
     get_back_button,
     get_main_menu_existing_user,
-    get_registration_keyboard
+    get_registration_keyboard,
+    get_reply_keyboard_existing_user
 )
 from utils import messages
 from utils.datetime_utils import get_current_datetime
@@ -81,9 +82,10 @@ async def process_name(message: Message, state: FSMContext):
     # Проверяем, не нажата ли кнопка "Назад"
     if message.text == messages.BTN_BACK:
         await state.clear()
-        await message.answer("Регистрация отменена. Возвращаемся в главное меню.")
-        from handlers.start import main_menu
-        await main_menu(message, state)
+        await message.answer("Регистрация отменена.")
+        # Вызываем команду /start
+        from handlers.start import cmd_start
+        await cmd_start(message, state)
         return
     
     name = message.text.strip()
@@ -128,6 +130,9 @@ async def process_country(message: Message, state: FSMContext):
     if any(variant in country.lower() for variant in ukraine_variants):
         await message.answer(messages.UKRAINE_RESTRICTION)
         await state.clear()
+        # Возвращаемся в главное меню
+        from handlers.start import cmd_start
+        await cmd_start(message, state)
         return
     
     await state.update_data(country=country)
@@ -265,13 +270,22 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         print(f"Ошибка отправки уведомления админу: {e}")
     
     # Отправляем финальное сообщение пользователю
-    await callback.message.edit_text(
+    await callback.message.answer(
         messages.REGISTRATION_COMPLETE.format(
             name=data['full_name'],
             referral_link=referral_link
         ),
+        reply_markup=get_reply_keyboard_existing_user()
+    )
+    
+    # Показываем главное меню
+    await callback.message.answer(
+        "Выберите действие:",
         reply_markup=get_main_menu_existing_user()
     )
+    
+    # Удаляем сообщение с подтверждением
+    await callback.message.delete()
     
     await state.clear()
     await callback.answer("✅ Заявка успешно отправлена!", show_alert=True)
@@ -280,7 +294,7 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
 async def edit_registration(callback: CallbackQuery, state: FSMContext):
     """Редактирование данных"""
     await state.set_state(RegistrationStates.waiting_for_name)
-    await callback.message.edit_text(messages.ASK_NAME)
+    await callback.message.answer(messages.ASK_NAME, reply_markup=get_registration_keyboard())
     await callback.answer()
 
 @router.message(F.text == messages.BTN_BACK)
@@ -290,5 +304,5 @@ async def handle_back_button(message: Message, state: FSMContext):
     
     if not current_state:
         # Если нет активного состояния, возвращаемся в главное меню
-        from handlers.start import main_menu
-        await main_menu(message, state)
+        from handlers.start import cmd_start
+        await cmd_start(message, state)

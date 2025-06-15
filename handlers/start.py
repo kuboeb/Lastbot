@@ -15,7 +15,8 @@ from keyboards.keyboards import (
     get_main_menu_new_user,
     get_main_menu_existing_user,
     get_reply_keyboard_new_user,
-    get_reply_keyboard_existing_user
+    get_reply_keyboard_existing_user,
+    get_back_button
 )
 from utils import messages
 from utils.datetime_utils import normalize_datetime, get_current_datetime
@@ -158,56 +159,43 @@ async def cmd_start(message: Message, state: FSMContext):
                 reply_markup=get_main_menu_new_user()
             )
 
-@router.message(F.text == "🏠 Меню")
+@router.message(F.text == "🏠 Главное меню")
 async def main_menu(message: Message, state: FSMContext):
-    """Возврат в главное меню"""
-    await state.clear()
-    
-    async with db_manager.get_session() as session:
-        result = await session.execute(
-            select(Application).where(Application.user_id == message.from_user.id)
-        )
-        application = result.scalar_one_or_none()
-        
-        if application:
-            await message.answer(
-                "Главное меню:",
-                reply_markup=get_main_menu_existing_user()
-            )
-        else:
-            await message.answer(
-                "Главное меню:",
-                reply_markup=get_main_menu_new_user()
-            )
-
-# Обработчики для Reply кнопок
-@router.message(F.text == "📋 Программа")
-async def show_program_button(message: Message):
-    """Показать программу курса через кнопку"""
-    from handlers.info import show_program
-    await show_program(message)
-
-@router.message(F.text == "💬 Отзывы")
-async def show_reviews_button(message: Message):
-    """Показать отзывы через кнопку"""
-    from handlers.info import show_reviews
-    await show_reviews(message)
-
-@router.message(F.text == "❓ Помощь")
-async def show_help_button(message: Message):
-    """Показать помощь через кнопку"""
-    await message.answer(messages.HELP_MESSAGE)
+    """Возврат в главное меню - вызывает /start"""
+    await cmd_start(message, state)
 
 @router.message(F.text == "💰 Реферальная ссылка")
 async def show_referral_link(message: Message):
     """Показать реферальную ссылку"""
-    await cmd_ref(message)
-
-@router.message(F.text == "📊 Мои рефералы")
-async def show_my_referrals_button(message: Message):
-    """Показать моих рефералов"""
-    from handlers.info import show_my_referrals
-    await show_my_referrals(message)
+    user_id = message.from_user.id
+    
+    async with db_manager.get_session() as session:
+        result = await session.execute(
+            select(Application).where(Application.user_id == user_id)
+        )
+        application = result.scalar_one_or_none()
+        
+        if application:
+            bot_info = await message.bot.get_me()
+            referral_link = f"https://t.me/{bot_info.username}?start=ref_{user_id}"
+            
+            result = await session.execute(
+                select(func.count(Referral.id)).where(Referral.referrer_id == user_id)
+            )
+            referrals_count = result.scalar() or 0
+            
+            await message.answer(
+                messages.REFERRAL_INFO.format(
+                    referral_link=referral_link,
+                    referrals_count=referrals_count
+                ),
+                reply_markup=get_back_button()
+            )
+        else:
+            await message.answer(
+                "❌ Реферальная программа доступна только после подачи заявки на курс.\n\n"
+                "Используйте кнопку '🚀 Записаться на курс' в меню!"
+            )
 
 @router.callback_query(F.data == "back_to_menu")
 async def back_to_menu(callback: CallbackQuery, state: FSMContext):
@@ -247,34 +235,7 @@ async def cmd_apply(message: Message, state: FSMContext):
 @router.message(Command("ref"))
 async def cmd_ref(message: Message):
     """Команда для получения реферальной ссылки"""
-    user_id = message.from_user.id
-    
-    async with db_manager.get_session() as session:
-        result = await session.execute(
-            select(Application).where(Application.user_id == user_id)
-        )
-        application = result.scalar_one_or_none()
-        
-        if application:
-            bot_info = await message.bot.get_me()
-            referral_link = f"https://t.me/{bot_info.username}?start=ref_{user_id}"
-            
-            result = await session.execute(
-                select(func.count(Referral.id)).where(Referral.referrer_id == user_id)
-            )
-            referrals_count = result.scalar() or 0
-            
-            await message.answer(
-                messages.REFERRAL_INFO.format(
-                    referral_link=referral_link,
-                    referrals_count=referrals_count
-                )
-            )
-        else:
-            await message.answer(
-                "❌ Реферальная программа доступна только после подачи заявки на курс.\n\n"
-                "Используйте /apply чтобы записаться!"
-            )
+    await show_referral_link(message)
 
 @router.message(Command("program"))
 async def cmd_program(message: Message):

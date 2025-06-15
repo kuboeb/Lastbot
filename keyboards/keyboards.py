@@ -12,23 +12,15 @@ from utils import messages
 def get_reply_keyboard_new_user():
     """Reply клавиатура для новых пользователей"""
     keyboard = [
-        [KeyboardButton(text="📋 Программа"), KeyboardButton(text="💬 Отзывы")],
-        [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="🏠 Меню")]
+        [KeyboardButton(text="🏠 Главное меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 def get_reply_keyboard_existing_user():
     """Reply клавиатура для существующих пользователей"""
     keyboard = [
-        [KeyboardButton(text="💰 Реферальная ссылка"), KeyboardButton(text="📊 Мои рефералы")],
-        [KeyboardButton(text="❓ Помощь"), KeyboardButton(text="�� Меню")]
-    ]
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-
-def get_back_keyboard():
-    """Reply клавиатура с кнопкой назад"""
-    keyboard = [
-        [KeyboardButton(text=messages.BTN_BACK)]
+        [KeyboardButton(text="💰 Реферальная ссылка")],
+        [KeyboardButton(text="🏠 Главное меню")]
     ]
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
@@ -44,7 +36,7 @@ def get_registration_keyboard():
 def get_main_menu_new_user():
     """Главное меню для новых пользователей"""
     keyboard = [
-        [InlineKeyboardButton(text="🚀 Записаться на курс", callback_data="apply")],
+        [InlineKeyboardButton(text="�� Записаться на курс", callback_data="apply")],
         [
             InlineKeyboardButton(text="📚 О курсе", callback_data="about_course"),
             InlineKeyboardButton(text="💬 Отзывы", callback_data="reviews")
@@ -79,20 +71,6 @@ def get_back_button():
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-def get_info_keyboard():
-    """Информационная клавиатура"""
-    keyboard = [
-        [
-            InlineKeyboardButton(text="📋 Программа курса", callback_data="program"),
-            InlineKeyboardButton(text="💬 Отзывы", callback_data="reviews")
-        ],
-        [
-            InlineKeyboardButton(text="❓ FAQ", callback_data="faq"),
-            InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_menu")
-        ]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
 def get_time_selection_keyboard():
     """Клавиатура выбора времени"""
     keyboard = [
@@ -114,24 +92,5 @@ def get_confirmation_keyboard():
             InlineKeyboardButton(text="✅ Подтвердить", callback_data="confirm"),
             InlineKeyboardButton(text="✏️ Изменить", callback_data="edit")
         ]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-def get_apply_button():
-    """Кнопка записаться"""
-    keyboard = [
-        [InlineKeyboardButton(text="🚀 Записаться на курс", callback_data="apply")]
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-def get_referral_share_keyboard(referral_link: str):
-    """Клавиатура для шеринга реферальной ссылки"""
-    share_text = "🚀 Записывайся на БЕСПЛАТНЫЙ курс по криптовалюте! Мы оба получим по 50€ когда ты пройдешь 50% курса!"
-    keyboard = [
-        [InlineKeyboardButton(
-            text="📤 Переслать другу", 
-            switch_inline_query=share_text + "\n\n" + referral_link
-        )],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="back_to_menu")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

@@ -211,6 +211,62 @@ async def show_referral_info(callback: CallbackQuery):
     
     await callback.answer()
 
+@router.callback_query(F.data == "my_referrals")
+async def show_my_referrals_callback(callback: CallbackQuery):
+    """Мои рефералы через callback"""
+    user_id = callback.from_user.id
+    
+    async with db_manager.get_session() as session:
+        # Проверяем, есть ли заявка
+        result = await session.execute(
+            select(Application).where(Application.user_id == user_id)
+        )
+        application = result.scalar_one_or_none()
+        
+        if not application:
+            await callback.answer(
+                "❌ У вас еще нет рефералов. Сначала подайте заявку на курс!",
+                show_alert=True
+            )
+            return
+        
+        # Получаем список рефералов
+        result = await session.execute(
+            select(Referral).where(Referral.referrer_id == user_id)
+        )
+        referrals = result.scalars().all()
+        
+        if not referrals:
+            bot_info = await callback.bot.get_me()
+            referral_link = f"https://t.me/{bot_info.username}?start=ref_{user_id}"
+            
+            text = f"У вас пока нет рефералов 😔
+
+"
+            text += f"Поделитесь вашей ссылкой с друзьями:
+"
+            text += f"{referral_link}
+
+"
+            text += f"Когда они пройдут 50% курса, вы оба получите по 50€!"
+        else:
+            text = f"📊 Ваши рефералы ({len(referrals)}):
+
+"
+            
+            for i, ref in enumerate(referrals, 1):
+                status_emoji = "✅" if ref.status == 'completed' else "⏳"
+                text += f"{i}. {status_emoji} Реферал #{ref.referred_id}
+"
+            
+            text += f"
+✅ Завершили курс: {sum(1 for r in referrals if r.status == 'completed')}"
+            text += f"
+⏳ В процессе: {sum(1 for r in referrals if r.status != 'completed')}"
+        
+        await callback.message.edit_text(text, reply_markup=get_back_button())
+        await callback.answer()
+
 @router.message(F.text == messages.BTN_REFERRAL)
 async def show_referral_msg(message: Message):
     """Реферальная программа через кнопку"""
