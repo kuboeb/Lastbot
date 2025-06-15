@@ -10,7 +10,7 @@ def format_datetime(dt):
     return '-', redirect, url_for, request, flash, jsonify, send_file
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 import psycopg2
-from psycopg2.extras import RealDictCursor
+
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 import pytz
@@ -49,8 +49,7 @@ def get_db_connection():
         database='crypto_course_db',
         user='cryptobot',
         password='kuboeb1A',
-        cursor_factory=RealDictCursor
-    )
+        )
 
 class Admin:
     def __init__(self, id, username):
@@ -1631,6 +1630,57 @@ def delete_integration(integration_id):
 
 
 # ==================== ИНТЕГРАЦИИ С CRM ====================
+
+
+@app.route('/test-db')
+@login_required
+def test_db():
+    """Тест подключения к БД"""
+    try:
+        import psycopg2
+        
+        
+        # Прямое подключение
+        conn = psycopg2.connect(
+            host='localhost',
+            database='crypto_course_db',
+            user='postgres',
+            password='',
+            )
+        cur = conn.cursor()
+        
+        # Тест 1: Простой запрос
+        cur.execute("SELECT 1")
+        test1 = cur.fetchone()
+        
+        # Тест 2: Запрос к integrations
+        cur.execute("SELECT COUNT(*) as count FROM integrations")
+        count = cur.fetchone()
+        
+        # Тест 3: Получение данных
+        cur.execute("SELECT id, name, type FROM integrations LIMIT 3")
+        rows = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        return f"""
+        <h1>Тест БД</h1>
+        <p>Тест 1: {test1}</p>
+        <p>Количество интеграций: {count}</p>
+        <p>Данные:</p>
+        <pre>{rows}</pre>
+        <p>Тип rows: {type(rows)}</p>
+        <p>Тип первой строки: {type(rows[0]) if rows else 'Нет данных'}</p>
+        """
+        
+    except Exception as e:
+        import traceback
+        return f"""
+        <h1>Ошибка БД</h1>
+        <pre>{traceback.format_exc()}</pre>
+        """
+
 
 @app.route('/integrations')
 @login_required
