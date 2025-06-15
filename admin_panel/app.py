@@ -232,7 +232,10 @@ def applications():
     
     # Параметры
     page = request.args.get('page', 1, type=int)
-    per_page = 50
+    per_page = request.args.get('per_page', 50, type=int)
+    if per_page not in [10, 20, 50, 100]:
+        per_page = 50
+    
     search = request.args.get('search', '')
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
@@ -281,7 +284,13 @@ def applications():
     count_query = "SELECT COUNT(*) as total " + base_query
     cur.execute(count_query, params)
     total_count = cur.fetchone()['total']
-    total_pages = (total_count + per_page - 1) // per_page
+    total_pages = (total_count + per_page - 1) // per_page if per_page > 0 else 1
+    
+    # Корректировка страницы
+    if page > total_pages:
+        page = total_pages
+    if page < 1:
+        page = 1
     
     # Получение данных с пагинацией
     offset = (page - 1) * per_page
@@ -324,12 +333,28 @@ def applications():
     cur.close()
     conn.close()
     
+    # Вычисляем диапазон страниц для отображения
+    page_range = []
+    if total_pages <= 7:
+        page_range = list(range(1, total_pages + 1))
+    else:
+        page_range = [1]
+        if page > 3:
+            page_range.append('...')
+        for p in range(max(2, page - 1), min(page + 2, total_pages)):
+            page_range.append(p)
+        if page < total_pages - 2:
+            page_range.append('...')
+        if total_pages > 1:
+            page_range.append(total_pages)
+    
     return render_template('applications.html', 
                          applications=applications,
                          page=page,
                          total_pages=total_pages,
                          total_count=total_count,
                          per_page=per_page,
+                         page_range=page_range,
                          today_count=today_count,
                          conversion_rate=conversion_rate,
                          countries=countries)
@@ -438,7 +463,10 @@ def users():
     
     # Параметры
     page = request.args.get('page', 1, type=int)
-    per_page = 50
+    per_page = request.args.get('per_page', 50, type=int)
+    if per_page not in [10, 20, 50, 100]:
+        per_page = 50
+        
     search = request.args.get('search', '')
     has_application = request.args.get('has_application', '')
     date_from = request.args.get('date_from', '')
@@ -480,7 +508,13 @@ def users():
     count_query = "SELECT COUNT(*) as total FROM (SELECT u.id " + base_query + group_by + having_clause + ") as subquery"
     cur.execute(count_query, params)
     total_count = cur.fetchone()['total']
-    total_pages = (total_count + per_page - 1) // per_page
+    total_pages = (total_count + per_page - 1) // per_page if per_page > 0 else 1
+    
+    # Корректировка страницы
+    if page > total_pages:
+        page = total_pages
+    if page < 1:
+        page = 1
     
     # Получение данных с пагинацией
     offset = (page - 1) * per_page
@@ -501,13 +535,29 @@ def users():
     cur.close()
     conn.close()
     
+    # Вычисляем диапазон страниц для отображения
+    page_range = []
+    if total_pages <= 7:
+        page_range = list(range(1, total_pages + 1))
+    else:
+        page_range = [1]
+        if page > 3:
+            page_range.append('...')
+        for p in range(max(2, page - 1), min(page + 2, total_pages)):
+            page_range.append(p)
+        if page < total_pages - 2:
+            page_range.append('...')
+        if total_pages > 1:
+            page_range.append(total_pages)
+    
     return render_template('users.html', 
                          users=users,
                          page=page,
                          total_pages=total_pages,
                          total_count=total_count,
                          all_users_count=all_users_count,
-                         per_page=per_page)
+                         per_page=per_page,
+                         page_range=page_range)
 
 @app.route('/export_users')
 @login_required
