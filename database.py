@@ -153,3 +153,24 @@ class DatabaseManager:
 
 # Создаем экземпляр менеджера БД
 db_manager = DatabaseManager()
+
+class TrackingEvent(Base):
+    __tablename__ = 'tracking_events'
+    
+    id = Column(Integer, primary_key=True)
+    source_id = Column(Integer, ForeignKey('traffic_sources.id'))
+    user_id = Column(BIGINT)
+    event_type = Column(String(50))
+    created_at = Column(DateTime, default=func.now())
+
+class IntegrationLog(Base):
+    __tablename__ = 'integration_logs'
+    
+    id = Column(Integer, primary_key=True)
+    integration_id = Column(Integer)
+    application_id = Column(Integer, ForeignKey('applications.id'))
+    status = Column(String(20))
+    request_data = Column(JSON)
+    response_data = Column(JSON)
+    error_message = Column(Text)
+    created_at = Column(DateTime, default=func.now())
