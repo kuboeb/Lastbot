@@ -16,26 +16,92 @@
             <div class="card">
                 <div class="card-body">
                     <form id="broadcastForm">
+                        <!-- Основная информация -->
                         <div class="mb-3">
                             <label class="form-label">Название рассылки</label>
                             <input type="text" class="form-control" id="name" required>
                         </div>
                         
+                        <!-- Тип рассылки -->
                         <div class="mb-3">
-                            <label class="form-label">Сообщение</label>
-                            <textarea class="form-control" id="message" rows="10" required></textarea>
-                            <small class="text-muted">
-                                Доступные переменные: {username}, {first_seen}
-                            </small>
+                            <label class="form-label">Тип рассылки</label>
+                            <select class="form-select" id="broadcastType" onchange="toggleBroadcastType()">
+                                <option value="single">Одиночное сообщение</option>
+                                <option value="scenario">Сценарий прогрева</option>
+                            </select>
                         </div>
                         
-                        <h5>Фильтры аудитории</h5>
+                        <!-- Для одиночного сообщения -->
+                        <div id="singleMessageBlock">
+                            <div class="mb-3">
+                                <label class="form-label">Сообщение</label>
+                                <textarea class="form-control" id="message" rows="10"></textarea>
+                                <small class="text-muted">
+                                    Доступные переменные: {username}, {first_seen}
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <!-- Для сценария -->
+                        <div id="scenarioBlock" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Выберите сценарий</label>
+                                <select class="form-select" id="scenarioType" onchange="showScenarioPreview()">
+                                    <option value="">-- Выберите сценарий --</option>
+                                    <option value="3_day_warming">3-дневный прогрев</option>
+                                    <option value="5_day_intensive">5-дневный интенсивный</option>
+                                    <option value="7_day_soft">7-дневный мягкий</option>
+                                    <option value="custom">Свой сценарий</option>
+                                </select>
+                            </div>
+                            
+                            <div id="scenarioPreview" class="alert alert-info" style="display: none;">
+                                <h6>Предпросмотр сценария:</h6>
+                                <div id="scenarioSteps"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Расписание -->
+                        <h5 class="mt-4">Расписание отправки</h5>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Когда отправить</label>
+                            <select class="form-select" id="scheduleType" onchange="toggleSchedule()">
+                                <option value="now">Сейчас</option>
+                                <option value="scheduled">Запланировать</option>
+                            </select>
+                        </div>
+                        
+                        <div id="scheduleBlock" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label">Дата начала</label>
+                                    <input type="date" class="form-control" id="scheduleDate">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Время начала</label>
+                                    <input type="time" class="form-control" id="scheduleTime">
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <label class="form-label">Повторение (для сценариев)</label>
+                                <select class="form-select" id="repeatType">
+                                    <option value="once">Один раз</option>
+                                    <option value="daily">Ежедневно в это время</option>
+                                    <option value="custom">Своё расписание</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Фильтры аудитории -->
+                        <h5 class="mt-4">Фильтры аудитории</h5>
                         
                         <div class="mb-3">
                             <label class="form-label">Статус заявки</label>
                             <select class="form-select" id="hasApplication">
                                 <option value="">Все пользователи</option>
-                                <option value="no">Без заявки (прогрев)</option>
+                                <option value="no" selected>Без заявки (прогрев)</option>
                                 <option value="yes">С заявкой</option>
                             </select>
                         </div>
@@ -85,9 +151,9 @@
             </div>
             
             <!-- Шаблоны сообщений -->
-            <div class="card mt-3">
+            <div class="card mt-3" id="templatesCard">
                 <div class="card-header">
-                    <h5 class="mb-0">Шаблоны для прогрева</h5>
+                    <h5 class="mb-0">Быстрые шаблоны</h5>
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
@@ -109,72 +175,110 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- Информация о сценариях -->
+            <div class="card mt-3" id="scenarioInfo" style="display: none;">
+                <div class="card-header">
+                    <h5 class="mb-0">О сценариях прогрева</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>3-дневный:</strong> Быстрый прогрев с нарастающей интенсивностью</p>
+                    <p><strong>5-дневный:</strong> Оптимальный баланс между скоростью и эффективностью</p>
+                    <p><strong>7-дневный:</strong> Мягкий подход для холодной аудитории</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-const templates = {
-    reminder: `🔔 Напоминание!
-
-Вы интересовались бесплатным курсом по криптовалюте, но еще не оставили заявку.
-
-⏰ Осталось всего 12 мест в группе!
-
-🎯 После курса вы сможете:
-- Зарабатывать от 500€ в месяц
-- Создать свой крипто-портфель
-- Понимать рыночные тренды
-
-Не упустите шанс изменить свою жизнь!
-
-👉 Нажмите /start чтобы записаться`,
-
-    limited: `⚠️ Внимание! Места заканчиваются!
-
-В новой группе курса осталось всего 7 свободных мест.
-
-🔥 Более 200 человек уже прошли обучение и зарабатывают на криптовалюте.
-
-Не откладывайте решение - завтра может быть поздно!
-
-✅ Запишитесь прямо сейчас: /start`,
-
-    benefits: `💎 Почему стоит записаться на наш курс?
-
-✅ 100% БЕСПЛАТНО - никаких скрытых платежей
-✅ Личный наставник на всех этапах
-✅ Практические задания с реальными кейсами
-✅ Сертификат по окончании
-✅ Доступ к закрытому сообществу трейдеров
-
-🚀 Начните зарабатывать уже через 2 месяца!
-
-Записывайтесь: /start`,
-
-    success: `📈 Наши ученики уже зарабатывают!
-
-"За 2 месяца вышел на доход 1200€" - Александр, Германия
-"Уволилась с нелюбимой работы!" - Мария, Испания
-"Лучшее решение в моей жизни" - Дмитрий, Италия
-
-💰 Хотите так же? Места еще есть!
-
-Начните свой путь к финансовой свободе: /start`,
-
-    lastchance: `🚨 ПОСЛЕДНИЙ ШАНС!
-
-Регистрация на курс закрывается через 24 часа!
-
-Это ваша последняя возможность:
-- Получить БЕСПЛАТНОЕ обучение
-- Научиться зарабатывать на криптовалюте
-- Изменить свою финансовую ситуацию
-
-⏰ Не упустите момент!
-
-Запишитесь сейчас: /start`
+// Сценарии прогрева
+const scenarios = {
+    '3_day_warming': {
+        name: '3-дневный прогрев',
+        steps: [
+            {day: 1, message: '🔔 Здравствуйте!\n\nВы интересовались нашим бесплатным курсом по криптовалюте.\n\n📊 Знаете ли вы, что 87% наших выпускников начинают зарабатывать уже через 2 месяца?\n\nНе упустите свой шанс! Места в группе ограничены.\n\n👉 Нажмите /start чтобы записаться'},
+            {day: 2, message: '💡 Представьте...\n\nЧерез 2 месяца вы можете зарабатывать от 500€ дополнительного дохода.\n\n✅ Без опыта\n✅ Без больших вложений\n✅ Всего 2-3 часа в день\n\n🎓 Наши ученики уже это делают!\n\n⏰ Осталось всего 12 мест в группе.\n\nЗапишитесь сейчас: /start'},
+            {day: 3, message: '⚠️ ПОСЛЕДНИЙ ДЕНЬ ЗАПИСИ!\n\nЗавтра мы закрываем набор в группу.\n\n🎁 Специально для вас:\n• Бесплатное обучение\n• Личный наставник\n• Доступ к закрытому сообществу\n\n❌ Больше такой возможности не будет!\n\nУспейте записаться: /start'}
+        ]
+    },
+    '5_day_intensive': {
+        name: '5-дневный интенсивный прогрев',
+        steps: [
+            {day: 1, message: '👋 Добро пожаловать!\n\nМы заметили ваш интерес к криптовалютам...'},
+            {day: 2, message: '🎯 Истории успеха наших учеников...'},
+            {day: 3, message: '📚 Что вы получите на курсе...'},
+            {day: 4, message: '⏰ Время уходит...'},
+            {day: 5, message: '🚨 ПОСЛЕДНИЙ ШАНС...'}
+        ]
+    },
+    '7_day_soft': {
+        name: '7-дневный мягкий прогрев',
+        steps: [
+            {day: 1, message: 'Добрый день! 👋...'},
+            {day: 3, message: '📊 Интересный факт...'},
+            {day: 5, message: '🎓 Образование - лучшая инвестиция...'},
+            {day: 7, message: '💭 Все еще думаете?...'}
+        ]
+    }
 };
+
+// Шаблоны одиночных сообщений
+const templates = {
+    reminder: `🔔 Напоминание!\n\nВы интересовались бесплатным курсом по криптовалюте, но еще не оставили заявку.\n\n⏰ Осталось всего 12 мест в группе!\n\n🎯 После курса вы сможете:\n• Зарабатывать от 500€ в месяц\n• Создать свой крипто-портфель\n• Понимать рыночные тренды\n\nНе упустите шанс изменить свою жизнь!\n\n👉 Нажмите /start чтобы записаться`,
+    limited: `⚠️ Внимание! Места заканчиваются!\n\nВ новой группе курса осталось всего 7 свободных мест.\n\n🔥 Более 200 человек уже прошли обучение и зарабатывают на криптовалюте.\n\nНе откладывайте решение - завтра может быть поздно!\n\n✅ Запишитесь прямо сейчас: /start`,
+    benefits: `💎 Почему стоит записаться на наш курс?\n\n✅ 100% БЕСПЛАТНО - никаких скрытых платежей\n✅ Личный наставник на всех этапах\n✅ Практические задания с реальными кейсами\n✅ Сертификат по окончании\n✅ Доступ к закрытому сообществу трейдеров\n\n🚀 Начните зарабатывать уже через 2 месяца!\n\nЗаписывайтесь: /start`,
+    success: `📈 Наши ученики уже зарабатывают!\n\n"За 2 месяца вышел на доход 1200€" - Александр, Германия\n"Уволилась с нелюбимой работы!" - Мария, Испания\n"Лучшее решение в моей жизни" - Дмитрий, Италия\n\n💰 Хотите так же? Места еще есть!\n\nНачните свой путь к финансовой свободе: /start`,
+    lastchance: `🚨 ПОСЛЕДНИЙ ШАНС!\n\nРегистрация на курс закрывается через 24 часа!\n\nЭто ваша последняя возможность:\n• Получить БЕСПЛАТНОЕ обучение\n• Научиться зарабатывать на криптовалюте\n• Изменить свою финансовую ситуацию\n\n⏰ Не упустите момент!\n\nЗапишитесь сейчас: /start`
+};
+
+function toggleBroadcastType() {
+    const type = document.getElementById('broadcastType').value;
+    
+    if (type === 'single') {
+        document.getElementById('singleMessageBlock').style.display = 'block';
+        document.getElementById('scenarioBlock').style.display = 'none';
+        document.getElementById('templatesCard').style.display = 'block';
+        document.getElementById('scenarioInfo').style.display = 'none';
+    } else {
+        document.getElementById('singleMessageBlock').style.display = 'none';
+        document.getElementById('scenarioBlock').style.display = 'block';
+        document.getElementById('templatesCard').style.display = 'none';
+        document.getElementById('scenarioInfo').style.display = 'block';
+    }
+}
+
+function toggleSchedule() {
+    const type = document.getElementById('scheduleType').value;
+    document.getElementById('scheduleBlock').style.display = type === 'scheduled' ? 'block' : 'none';
+}
+
+function showScenarioPreview() {
+    const scenarioType = document.getElementById('scenarioType').value;
+    const preview = document.getElementById('scenarioPreview');
+    const steps = document.getElementById('scenarioSteps');
+    
+    if (scenarioType && scenarios[scenarioType]) {
+        const scenario = scenarios[scenarioType];
+        let html = '';
+        
+        scenario.steps.forEach(step => {
+            html += `
+                <div class="mb-3">
+                    <strong>День ${step.day}:</strong>
+                    <div class="bg-light p-2 rounded" style="white-space: pre-wrap; font-size: 0.9em;">
+${step.message.substring(0, 150)}${step.message.length > 150 ? '...' : ''}
+                    </div>
+                </div>
+            `;
+        });
+        
+        steps.innerHTML = html;
+        preview.style.display = 'block';
+    } else {
+        preview.style.display = 'none';
+    }
+}
 
 function useTemplate(templateName) {
     document.getElementById('message').value = templates[templateName];
@@ -189,7 +293,6 @@ async function previewAudience() {
     };
     
     // Здесь можно добавить AJAX запрос для получения количества получателей
-    // Пока просто активируем кнопку
     document.getElementById('createBtn').disabled = false;
     document.getElementById('audiencePreview').innerHTML = `
         <div class="alert alert-info">
@@ -201,9 +304,13 @@ async function previewAudience() {
 document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const data = {
+    const broadcastType = document.getElementById('broadcastType').value;
+    const scheduleType = document.getElementById('scheduleType').value;
+    
+    let data = {
         name: document.getElementById('name').value,
-        message: document.getElementById('message').value,
+        broadcast_type: broadcastType,
+        schedule_type: scheduleType,
         filters: {
             has_application: document.getElementById('hasApplication').value,
             activity: document.getElementById('activity').value,
@@ -211,6 +318,22 @@ document.getElementById('broadcastForm').addEventListener('submit', async (e) =>
             registration_to: document.getElementById('registrationTo').value
         }
     };
+    
+    // Для одиночного сообщения
+    if (broadcastType === 'single') {
+        data.message = document.getElementById('message').value;
+    } else {
+        // Для сценария
+        data.scenario_type = document.getElementById('scenarioType').value;
+    }
+    
+    // Если запланировано
+    if (scheduleType === 'scheduled') {
+        const date = document.getElementById('scheduleDate').value;
+        const time = document.getElementById('scheduleTime').value;
+        data.scheduled_at = `${date} ${time}`;
+        data.repeat_type = document.getElementById('repeatType').value;
+    }
     
     try {
         const response = await fetch('/broadcast/create', {
@@ -234,5 +357,10 @@ document.getElementById('broadcastForm').addEventListener('submit', async (e) =>
         alert('Ошибка создания рассылки');
     }
 });
+
+// Устанавливаем текущую дату и время по умолчанию
+const now = new Date();
+document.getElementById('scheduleDate').value = now.toISOString().split('T')[0];
+document.getElementById('scheduleTime').value = now.toTimeString().slice(0, 5);
 </script>
 {% endblock %}

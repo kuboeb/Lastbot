@@ -1180,16 +1180,48 @@ def create_broadcast():
             cur.execute(query, params)
             recipients = cur.fetchall()
             
+            broadcast_type = data.get('broadcast_type', 'single')
+            
+            # Если это сценарий, получаем первое сообщение
+            message = data.get('message', '')
+            scenario_type = None
+            
+            if broadcast_type == 'scenario':
+                scenario_type = data.get('scenario_type')
+                # Получаем сценарий из БД
+                cur.execute("""
+                    SELECT steps FROM warming_scenarios 
+                    WHERE name = %s
+                """, (scenario_type,))
+                scenario = cur.fetchone()
+                
+                if scenario and scenario['steps']:
+                    # Берем первое сообщение из сценария
+                    first_step = scenario['steps'][0]
+                    message = first_step.get('message', '')
+            
+            # Определяем время отправки
+            scheduled_at = None
+            if data.get('schedule_type') == 'scheduled':
+                scheduled_at = data.get('scheduled_at')
+            
             # Создаем рассылку
             cur.execute("""
-                INSERT INTO broadcasts (name, message, target_audience, recipient_count, status)
-                VALUES (%s, %s, %s, %s, 'pending')
+                INSERT INTO broadcasts 
+                (name, message, target_audience, recipient_count, status, 
+                 scenario_type, schedule_type, scheduled_at, next_run_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """, (
                 data['name'],
-                data['message'],
+                message,
                 json.dumps(filters),
-                len(recipients)
+                len(recipients),
+                'scheduled' if scheduled_at else 'pending',
+                scenario_type,
+                data.get('repeat_type', 'once'),
+                scheduled_at,
+                scheduled_at  # next_run_at = scheduled_at для первого запуска
             ))
             
             broadcast_id = cur.fetchone()['id']
@@ -1216,9 +1248,7 @@ def create_broadcast():
             cur.close()
             conn.close()
     
-    return render_template('create_broadcast.html')
-
-@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
+    return render_template('create_broadcast.html')@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
 @login_required
 def send_broadcast(broadcast_id):
     """Запуск рассылки"""
