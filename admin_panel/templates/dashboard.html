@@ -62,7 +62,7 @@
                 <div class="card-body">
                     <h5 class="card-title text-muted">Конверсия</h5>
                     <h2 class="mb-0">
-<!--                         {% if funnel_stats["start"] > 0 %} -->
+{% if funnel_stats["start"] > 0 %}
                             {{ "%.1f"|format(funnel_stats["complete_registration"] / funnel_stats["start"] * 100) }}%
                         {% else %}
                             0%
