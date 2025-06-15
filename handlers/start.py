@@ -71,8 +71,8 @@ async def cmd_start(message: Message, state: FSMContext):
             user = BotUser(
                 user_id=user_id,
                 username=username,
-                first_seen=message.date,
-                last_activity=message.date
+                first_seen=message.date.replace(tzinfo=None) if message.date else None,
+                last_activity=message.date.replace(tzinfo=None) if message.date else None
             )
             
             # Если есть источник трафика, находим его
@@ -91,7 +91,7 @@ async def cmd_start(message: Message, state: FSMContext):
                 referral = Referral(
                     referrer_id=referrer_id,
                     referred_id=user_id,
-                    created_at=message.date
+                    created_at=message.date.replace(tzinfo=None) if message.date else None
                 )
                 session.add(referral)
             
