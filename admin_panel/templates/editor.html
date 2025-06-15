@@ -1,11 +1,216 @@
 {% extends "base.html" %}
+
 {% block title %}Редактор текстов{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <h1 class="h3 mb-4">Редактор текстов</h1>
-    <div class="alert alert-info">
-        Эта страница в разработке. Здесь будет редактор текстов бота.
+    <h1 class="h3 mb-4">Редактор текстов бота</h1>
+    
+    <!-- Категории -->
+    <ul class="nav nav-tabs mb-4" id="categoryTabs">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#all">Все тексты</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#welcome">Приветствия</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#registration">Регистрация</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#info">Информация</a>
+        </li>
+    </ul>
+    
+    <!-- Контент -->
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="all">
+            {% for text in texts %}
+            <div class="card mb-3 text-item" data-category="{{ text.category }}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">{{ text.description }}</h5>
+                        <small class="text-muted">Ключ: {{ text.key }} | Категория: {{ text.category }}</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="preview" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px;">{{ text.text }}</div>
+                    {% if text.updated_at %}
+                    <small class="text-muted d-block mt-2">
+                        Обновлено: {{ text.updated_at.strftime('%d.%m.%Y %H:%M') }}
+                    </small>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="tab-pane fade" id="welcome">
+            {% for text in texts if text.category == 'welcome' %}
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">{{ text.description }}</h5>
+                        <small class="text-muted">Ключ: {{ text.key }}</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="preview" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px;">{{ text.text }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="tab-pane fade" id="registration">
+            {% for text in texts if text.category == 'registration' %}
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">{{ text.description }}</h5>
+                        <small class="text-muted">Ключ: {{ text.key }}</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="preview" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px;">{{ text.text }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="tab-pane fade" id="info">
+            {% for text in texts if text.category == 'info' %}
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0">{{ text.description }}</h5>
+                        <small class="text-muted">Ключ: {{ text.key }}</small>
+                    </div>
+                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="preview" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px;">{{ text.text }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Вернуться на дашборд</a>
 </div>
+
+<!-- Модальное окно редактирования -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактирование текста</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="textId" name="id">
+                    <div class="mb-3">
+                        <label class="form-label">Описание</label>
+                        <input type="text" class="form-control" id="textDescription" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Текст сообщения</label>
+                        <textarea class="form-control" id="textContent" name="text" rows="10" 
+                                  placeholder="Введите текст сообщения..."></textarea>
+                        <small class="text-muted">
+                            Доступные переменные: {referral_link}, {referrals_count}, {name}, {phone}, {time}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Предпросмотр</label>
+                        <div id="preview" style="white-space: pre-wrap; background: #f8f9fa; 
+                             padding: 15px; border-radius: 5px; min-height: 100px;">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="saveText">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    let currentTextId = null;
+    
+    // Обработчик кнопок редактирования
+    document.querySelectorAll('.edit-text').forEach(button => {
+        button.addEventListener('click', async function() {
+            currentTextId = this.dataset.id;
+            
+            // Загружаем данные текста
+            try {
+                const response = await fetch(`/admin/texts/${currentTextId}`);
+                const data = await response.json();
+                
+                document.getElementById('textId').value = data.id;
+                document.getElementById('textDescription').value = data.description;
+                document.getElementById('textContent').value = data.text;
+                updatePreview();
+                
+                editModal.show();
+            } catch (error) {
+                alert('Ошибка загрузки текста: ' + error.message);
+            }
+        });
+    });
+    
+    // Обновление предпросмотра
+    function updatePreview() {
+        const text = document.getElementById('textContent').value;
+        const preview = document.getElementById('preview');
+        
+        // Заменяем переменные на примеры
+        let previewText = text
+            .replace(/{referral_link}/g, 'https://t.me/bot_name?start=ref_123456')
+            .replace(/{referrals_count}/g, '5')
+            .replace(/{name}/g, 'Иван Иванов')
+            .replace(/{phone}/g, '+49123456789')
+            .replace(/{time}/g, '12:00 - 15:00');
+        
+        preview.textContent = previewText;
+    }
+    
+    // Обновляем предпросмотр при вводе
+    document.getElementById('textContent').addEventListener('input', updatePreview);
+    
+    // Сохранение текста
+    document.getElementById('saveText').addEventListener('click', async function() {
+        const formData = new FormData(document.getElementById('editForm'));
+        
+        try {
+            const response = await fetch(`/admin/texts/${currentTextId}/update`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Ошибка при сохранении');
+            }
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    });
+});
+</script>
 {% endblock %}

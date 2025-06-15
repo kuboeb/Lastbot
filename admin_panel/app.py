@@ -438,3 +438,75 @@ def init_admin():
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
+
+@app.route('/editor')
+@login_required
+def text_editor():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM bot_texts ORDER BY category, key")
+    texts = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    return render_template('editor.html', texts=texts)
+
+@app.route('/admin/texts/<int:text_id>')
+@login_required
+def get_text(text_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM bot_texts WHERE id = %s", (text_id,))
+    text = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if text:
+        return jsonify(dict(text))
+    return jsonify({'error': 'Text not found'}), 404
+
+@app.route('/admin/texts/<int:text_id>/update', methods=['POST'])
+@login_required
+def update_text(text_id):
+    text_content = request.form.get('text')
+    
+    if not text_content:
+        return jsonify({'error': 'Text is required'}), 400
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE bot_texts 
+            SET text = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+            WHERE id = %s
+        """, (text_content, current_user.id, text_id))
+        
+        conn.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+# API endpoint для бота чтобы получать тексты
+@app.route('/api/texts/<key>')
+def get_text_by_key(key):
+    # Простая защита по API ключу
+    api_key = request.headers.get('X-API-Key')
+    if api_key != 'internal-bot-key-2024':
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT text FROM bot_texts WHERE key = %s", (key,))
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if result:
+        return jsonify({'text': result['text']})
+    return jsonify({'error': 'Text not found'}), 404
