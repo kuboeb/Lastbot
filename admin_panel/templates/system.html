@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Система - Админ панель{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h2 mb-4">Информация о системе</h1>
+    
+    <div class="row">
+        <!-- Статус сервера -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Статус сервера</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label>CPU загрузка:</label>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{ system_stats.cpu_percent }}%">
+                                {{ system_stats.cpu_percent }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label>RAM использование:</label>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{ system_stats.memory_percent }}%">
+                                {{ system_stats.memory_percent }}%
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            {{ system_stats.memory_used }}GB / {{ system_stats.memory_total }}GB
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label>Диск:</label>
+                        <div class="progress">
+                            <div class="progress-bar" style="width: {{ system_stats.disk_percent }}%">
+                                {{ system_stats.disk_percent }}%
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            {{ system_stats.disk_used }}GB / {{ system_stats.disk_total }}GB
+                        </small>
+                    </div>
+                    
+                    <p><strong>Uptime:</strong> {{ system_stats.uptime }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- База данных -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">База данных</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Размер БД:</strong> {{ db_stats.size }}</p>
+                    <p><strong>Записей:</strong></p>
+                    <ul>
+                        <li>Пользователей: {{ db_stats.users_count }}</li>
+                        <li>Заявок: {{ db_stats.applications_count }}</li>
+                        <li>Рефералов: {{ db_stats.referrals_count }}</li>
+                    </ul>
+                    <p><strong>Последний бэкап:</strong> {{ db_stats.last_backup }}</p>
+                    
+                    <button class="btn btn-primary" onclick="createBackup()">
+                        <i class="fas fa-download"></i> Создать бэкап
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Экспорт проекта -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Экспорт проекта</h5>
+        </div>
+        <div class="card-body">
+            <p>Скачать полный архив проекта с кодом, конфигурацией и инструкциями по развертыванию.</p>
+            
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="includeDb" checked>
+                <label class="form-check-label" for="includeDb">
+                    Включить дамп базы данных
+                </label>
+            </div>
+            
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="includeLogs">
+                <label class="form-check-label" for="includeLogs">
+                    Включить логи
+                </label>
+            </div>
+            
+            <button class="btn btn-success" onclick="exportProject()">
+                <i class="fas fa-archive"></i> Скачать архив проекта
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function createBackup() {
+    if (confirm('Создать резервную копию базы данных?')) {
+        window.location.href = '/admin/backup/create';
+    }
+}
+
+function exportProject() {
+    const includeDb = $('#includeDb').is(':checked');
+    const includeLogs = $('#includeLogs').is(':checked');
+    
+    window.location.href = `/admin/export/project?db=${includeDb}&logs=${includeLogs}`;
+}
+</script>
+{% endblock %}

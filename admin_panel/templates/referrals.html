@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Рефералы - Админ панель{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h2 mb-4">Реферальная статистика</h1>
+    
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Всего рефералов</h5>
+                    <h2 class="mb-0">{{ total_referrals }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body">
+                    <h5 class="card-title">Активных</h5>
+                    <h2 class="mb-0">{{ active_referrals }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body">
+                    <h5 class="card-title">К выплате</h5>
+                    <h2 class="mb-0">{{ pending_amount }}€</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h5 class="card-title">Выплачено</h5>
+                    <h2 class="mb-0">{{ paid_amount }}€</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Топ рефереров -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Топ-10 рефереров</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Место</th>
+                            <th>Пользователь</th>
+                            <th>Приглашено</th>
+                            <th>Активных</th>
+                            <th>Заработано</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for referrer in top_referrers %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>
+                                {% if referrer.username %}
+                                    <a href="https://t.me/{{ referrer.username }}" target="_blank">
+                                        @{{ referrer.username }}
+                                    </a>
+                                {% else %}
+                                    ID: {{ referrer.user_id }}
+                                {% endif %}
+                            </td>
+                            <td>{{ referrer.total_referrals }}</td>
+                            <td>{{ referrer.active_referrals }}</td>
+                            <td>{{ referrer.earned }}€</td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="showReferralTree({{ referrer.user_id }})">
+                                    <i class="fas fa-sitemap"></i> Дерево
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Все рефералы -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Все реферальные связи</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th>Реферер</th>
+                            <th>Реферал</th>
+                            <th>Статус</th>
+                            <th>Прогресс курса</th>
+                            <th>К выплате</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ref in referrals %}
+                        <tr>
+                            <td>{{ ref.created_at.strftime('%d.%m.%Y') }}</td>
+                            <td>
+                                {% if ref.referrer.username %}
+                                    @{{ ref.referrer.username }}
+                                {% else %}
+                                    ID: {{ ref.referrer_id }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ref.referred.username %}
+                                    @{{ ref.referred.username }}
+                                {% else %}
+                                    ID: {{ ref.referred_id }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ref.status == 'registered' %}
+                                    <span class="badge bg-info">Зарегистрирован</span>
+                                {% elif ref.status == 'completed' %}
+                                    <span class="badge bg-success">Завершил 50%</span>
+                                {% elif ref.status == 'paid' %}
+                                    <span class="badge bg-secondary">Выплачено</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="progress">
+                                    <div class="progress-bar" style="width: {{ ref.progress }}%">
+                                        {{ ref.progress }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% if ref.status == 'completed' %}
+                                    100€ (по 50€ каждому)
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно дерева рефералов -->
+<div class="modal fade" id="referralTreeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Дерево рефералов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="treeContent">
+                <!-- Загружается через JS -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showReferralTree(userId) {
+    $('#treeContent').html('<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Загрузка...</div>');
+    $('#referralTreeModal').modal('show');
+    
+    $.get(`/admin/api/referrals/tree/${userId}`)
+        .done(function(data) {
+            $('#treeContent').html(data.html);
+        })
+        .fail(function() {
+            $('#treeContent').html('<div class="alert alert-danger">Ошибка загрузки</div>');
+        });
+}
+</script>
+{% endblock %}
