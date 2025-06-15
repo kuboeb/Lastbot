@@ -62,8 +62,8 @@
                 <div class="card-body">
                     <h5 class="card-title text-muted">Конверсия</h5>
                     <h2 class="mb-0">
-                        {% if funnel_stats.start > 0 %}
-                            {{ "%.1f"|format(funnel_stats.complete_registration / funnel_stats.start * 100) }}%
+                        {% if funnel_stats["start"] > 0 %}
+                            {{ "%.1f"|format(funnel_stats["complete_registration"] / funnel_stats["start"] * 100) }}%
                         {% else %}
                             0%
                         {% endif %}
@@ -75,7 +75,7 @@
             <div class="card stat-card border-info border-start border-4">
                 <div class="card-body">
                     <h5 class="card-title text-muted">Активных пользователей</h5>
-                    <h2 class="mb-0">{{ funnel_stats.start }}</h2>
+                    <h2 class="mb-0">{{ funnel_stats["start"] }}</h2>
                 </div>
             </div>
         </div>
@@ -105,16 +105,16 @@
                 <div class="card-body">
                     <div class="funnel-step">
                         <h6>Команда /start</h6>
-                        <p class="mb-0 text-muted">{{ funnel_stats.start }} пользователей</p>
+                        <p class="mb-0 text-muted">{{ funnel_stats["start"] }} пользователей</p>
                         <span class="funnel-percent">100%</span>
                     </div>
                     
                     <div class="funnel-step">
                         <h6>Начали регистрацию</h6>
-                        <p class="mb-0 text-muted">{{ funnel_stats.begin_registration }} пользователей</p>
+                        <p class="mb-0 text-muted">{{ funnel_stats["begin_registration"] }} пользователей</p>
                         <span class="funnel-percent">
-                            {% if funnel_stats.start > 0 %}
-                                {{ "%.0f"|format(funnel_stats.begin_registration / funnel_stats.start * 100) }}%
+                            {% if funnel_stats["start"] > 0 %}
+                                {{ "%.0f"|format(funnel_stats["begin_registration"] / funnel_stats["start"] * 100) }}%
                             {% else %}
                                 0%
                             {% endif %}
@@ -125,8 +125,8 @@
                         <h6>Ввели имя</h6>
                         <p class="mb-0 text-muted">{{ funnel_stats.enter_name }} пользователей</p>
                         <span class="funnel-percent">
-                            {% if funnel_stats.start > 0 %}
-                                {{ "%.0f"|format(funnel_stats.enter_name / funnel_stats.start * 100) }}%
+                            {% if funnel_stats["start"] > 0 %}
+                                {{ "%.0f"|format(funnel_stats.enter_name / funnel_stats["start"] * 100) }}%
                             {% else %}
                                 0%
                             {% endif %}
@@ -137,8 +137,8 @@
                         <h6>Ввели страну</h6>
                         <p class="mb-0 text-muted">{{ funnel_stats.enter_country }} пользователей</p>
                         <span class="funnel-percent">
-                            {% if funnel_stats.start > 0 %}
-                                {{ "%.0f"|format(funnel_stats.enter_country / funnel_stats.start * 100) }}%
+                            {% if funnel_stats["start"] > 0 %}
+                                {{ "%.0f"|format(funnel_stats.enter_country / funnel_stats["start"] * 100) }}%
                             {% else %}
                                 0%
                             {% endif %}
@@ -149,8 +149,8 @@
                         <h6>Ввели телефон</h6>
                         <p class="mb-0 text-muted">{{ funnel_stats.enter_phone }} пользователей</p>
                         <span class="funnel-percent">
-                            {% if funnel_stats.start > 0 %}
-                                {{ "%.0f"|format(funnel_stats.enter_phone / funnel_stats.start * 100) }}%
+                            {% if funnel_stats["start"] > 0 %}
+                                {{ "%.0f"|format(funnel_stats.enter_phone / funnel_stats["start"] * 100) }}%
                             {% else %}
                                 0%
                             {% endif %}
@@ -159,10 +159,10 @@
                     
                     <div class="funnel-step bg-success text-white">
                         <h6>Завершили регистрацию</h6>
-                        <p class="mb-0">{{ funnel_stats.complete_registration }} пользователей</p>
+                        <p class="mb-0">{{ funnel_stats["complete_registration"] }} пользователей</p>
                         <span class="funnel-percent text-white">
-                            {% if funnel_stats.start > 0 %}
-                                {{ "%.0f"|format(funnel_stats.complete_registration / funnel_stats.start * 100) }}%
+                            {% if funnel_stats["start"] > 0 %}
+                                {{ "%.0f"|format(funnel_stats["complete_registration"] / funnel_stats["start"] * 100) }}%
                             {% else %}
                                 0%
                             {% endif %}
