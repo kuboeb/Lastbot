@@ -121,6 +121,12 @@
                                     <i class="bi bi-bug"></i>
                                 </button>
                                 <button class="btn btn-sm btn-secondary toggle-source" 
+                                <button class="btn btn-sm btn-danger delete-source" 
+                                        data-source-id="{{ source.id }}" 
+                                        data-source-name="{{ source.name }}" 
+                                        title="Удалить">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                                         data-source-id="{{ source.id }}" 
                                         title="{% if source.is_active %}Выключить{% else %}Включить{% endif %}">
                                     <i class="bi bi-toggle-{% if source.is_active %}on{% else %}off{% endif %}"></i>
@@ -476,5 +482,49 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+
+// Удаление источника
+document.querySelectorAll('.delete-source').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const sourceId = this.dataset.sourceId;
+        const sourceName = this.dataset.sourceName;
+        
+        if (!confirm(`Удалить источник "${sourceName}"?`)) return;
+        
+        try {
+            const response = await fetch(`/traffic-sources/${sourceId}/delete`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                location.reload();
+            } else if (result.confirm_required) {
+                // Если есть связанные данные
+                if (confirm(`Источник имеет ${result.events_count} связанных событий. Удалить вместе со всеми данными?`)) {
+                    const forceResponse = await fetch(`/traffic-sources/${sourceId}/force-delete`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'}
+                    });
+                    
+                    const forceResult = await forceResponse.json();
+                    if (forceResult.success) {
+                        location.reload();
+                    } else {
+                        alert('Ошибка: ' + forceResult.error);
+                    }
+                }
+            } else {
+                alert('Ошибка: ' + result.error);
+            }
+        } catch (error) {
+            alert('Ошибка удаления: ' + error.message);
+        }
+    });
+});
+
 </script>
 {% endblock %}

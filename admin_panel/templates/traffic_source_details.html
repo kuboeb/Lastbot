@@ -6,6 +6,9 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h3">{{ source.name }}</h1>
+        <button class="btn btn-danger" onclick="deleteSource({{ source.id }}, '{{ source.name }}');">
+            <i class="bi bi-trash"></i> Удалить источник
+        </button>
         <a href="{{ url_for('traffic_sources') }}" class="btn btn-secondary">
             <i class="bi bi-arrow-left"></i> Назад
         </a>
@@ -280,5 +283,43 @@ const statsChart = new Chart(ctx, {
         maintainAspectRatio: false
     }
 });
+
+
+// Функция удаления источника
+async function deleteSource(sourceId, sourceName) {
+    if (!confirm(`Удалить источник "${sourceName}"?`)) return;
+    
+    try {
+        const response = await fetch(`/traffic-sources/${sourceId}/delete`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            window.location.href = '/traffic-sources';
+        } else if (result.confirm_required) {
+            if (confirm(`Источник имеет ${result.events_count} связанных событий. Удалить вместе со всеми данными?`)) {
+                const forceResponse = await fetch(`/traffic-sources/${sourceId}/force-delete`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                const forceResult = await forceResponse.json();
+                if (forceResult.success) {
+                    window.location.href = '/traffic-sources';
+                } else {
+                    alert('Ошибка: ' + forceResult.error);
+                }
+            }
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка удаления: ' + error.message);
+    }
+}
+
 </script>
 {% endblock %}

@@ -1033,6 +1033,71 @@ if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
 
+
+
+@app.route('/traffic-sources/<int:source_id>/delete', methods=['POST'])
+@login_required
+def delete_traffic_source(source_id):
+    """Удалить источник трафика"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Проверяем, есть ли связанные данные
+        cur.execute("""
+            SELECT COUNT(*) as count FROM tracking_events WHERE source_id = %s
+        """, (source_id,))
+        events_count = cur.fetchone()['count']
+        
+        if events_count > 0:
+            # Если есть события, предупреждаем
+            return jsonify({
+                'success': False,
+                'error': f'Невозможно удалить источник. Связано событий: {events_count}',
+                'confirm_required': True,
+                'events_count': events_count
+            })
+        
+        # Удаляем источник
+        cur.execute("DELETE FROM traffic_sources WHERE id = %s", (source_id,))
+        conn.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/<int:source_id>/force-delete', methods=['POST'])
+@login_required
+def force_delete_traffic_source(source_id):
+    """Принудительно удалить источник со всеми связанными данными"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Удаляем в правильном порядке из-за foreign keys
+        cur.execute("DELETE FROM conversion_logs WHERE source_id = %s", (source_id,))
+        cur.execute("DELETE FROM user_click_ids WHERE source_id = %s", (source_id,))
+        cur.execute("DELETE FROM tracking_events WHERE source_id = %s", (source_id,))
+        cur.execute("UPDATE applications SET source_id = NULL WHERE source_id = %s", (source_id,))
+        cur.execute("UPDATE bot_users SET source_id = NULL WHERE source_id = %s", (source_id,))
+        cur.execute("DELETE FROM traffic_sources WHERE id = %s", (source_id,))
+        
+        conn.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
 @app.route('/admin/texts/<int:text_id>/update', methods=['POST'])
 @login_required
 def update_text(text_id):
