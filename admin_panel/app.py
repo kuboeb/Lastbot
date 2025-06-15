@@ -1956,3 +1956,34 @@ def api_send_to_crm(application_id):
         return jsonify({'error': str(e)}), 500
 
 
+
+
+@app.route('/integrations/send-all-pending', methods=['POST'])
+@login_required
+def send_all_pending():
+    """Отправить все неотправленные заявки в CRM"""
+    try:
+        from auto_send_to_crm import get_unsent_applications, send_application_to_active_crms
+        
+        unsent_ids = get_unsent_applications()
+        sent_count = 0
+        errors = []
+        
+        for app_id in unsent_ids:
+            try:
+                send_application_to_active_crms(app_id)
+                sent_count += 1
+            except Exception as e:
+                errors.append(f"Заявка {app_id}: {str(e)}")
+        
+        if errors:
+            flash(f'Отправлено {sent_count} заявок. Ошибки: {", ".join(errors)}', 'warning')
+        else:
+            flash(f'Успешно отправлено {sent_count} заявок в CRM!', 'success')
+            
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+    
+    return redirect(url_for('integrations'))
+
+
