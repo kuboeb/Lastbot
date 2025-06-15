@@ -1,0 +1,104 @@
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import json
+import os
+import sys
+sys.path.append('/home/Lastbot/admin_panel')
+from integrations import send_to_crm
+
+def send_application_to_active_crms(application_id):
+    """Отправить заявку во все активные CRM"""
+    try:
+        # Подключаемся к БД
+        conn = psycopg2.connect(
+            host='localhost',
+            database='crypto_course_db',
+            user='cryptobot',
+            password='kuboeb1A',
+            cursor_factory=RealDictCursor
+        )
+        cur = conn.cursor()
+        
+        # Получаем данные заявки
+        cur.execute("""
+            SELECT a.*, bu.username
+            FROM applications a
+            LEFT JOIN bot_users bu ON a.user_id = bu.user_id
+            WHERE a.id = %s
+        """, (application_id,))
+        
+        app_data = cur.fetchone()
+        if not app_data:
+            print(f"Application {application_id} not found")
+            return
+        
+        # Формируем данные для CRM
+        name_parts = app_data['full_name'].split(' ', 1) if app_data['full_name'] else ['', '']
+        lead_data = {
+            'first_name': name_parts[0],
+            'last_name': name_parts[1] if len(name_parts) > 1 else '',
+            'phone': app_data['phone'],
+            'country': app_data['country'],
+            'preferred_time': app_data['preferred_time'],
+            'user_id': str(app_data['user_id']),
+            'username': app_data['username'] or '',
+            'email': ''
+        }
+        
+        print(f"Sending lead data: {lead_data}")
+        
+        # Получаем активные интеграции
+        cur.execute("""
+            SELECT id, type, settings 
+            FROM integrations 
+            WHERE is_active = TRUE
+        """)
+        
+        for integration in cur.fetchall():
+            try:
+                print(f"Sending to {integration['type']} (ID: {integration['id']})")
+                result = send_to_crm(
+                    integration['type'],
+                    integration['settings'],
+                    lead_data,
+                    application_id
+                )
+                
+                # Логируем результат
+                cur.execute("""
+                    INSERT INTO integration_logs 
+                    (integration_id, application_id, status, request_data, response_data, error_message)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    integration['id'],
+                    application_id,
+                    'success' if result.get('success') else 'error',
+                    json.dumps(lead_data),
+                    json.dumps(result.get('response', {})),
+                    result.get('error', '')
+                ))
+                
+                print(f"Result: {result}")
+                
+            except Exception as e:
+                print(f"Error sending to integration {integration['id']}: {e}")
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        print(f"Application {application_id} sent to all active CRMs")
+        
+    except Exception as e:
+        print(f"Error in send_application_to_active_crms: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    # Тест - отправим последнюю заявку
+    if len(sys.argv) > 1:
+        app_id = int(sys.argv[1])
+        send_application_to_active_crms(app_id)
+    else:
+        print("Usage: python send_to_crm_helper.py <application_id>")

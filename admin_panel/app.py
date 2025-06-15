@@ -1938,3 +1938,21 @@ def delete_integration(integration_id):
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
+
+
+@app.route('/api/send-application-to-crm/<int:application_id>', methods=['POST'])
+def api_send_to_crm(application_id):
+    """API endpoint для отправки заявки в CRM из бота"""
+    # Проверяем API ключ
+    api_key = request.headers.get('X-API-Key')
+    if api_key != os.getenv('INTERNAL_API_KEY', 'your-secret-api-key'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        from send_to_crm_helper import send_application_to_active_crms
+        send_application_to_active_crms(application_id)
+        return jsonify({'success': True, 'message': f'Application {application_id} sent to CRM'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+

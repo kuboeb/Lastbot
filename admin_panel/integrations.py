@@ -16,7 +16,7 @@ def send_to_crm(integration_type, settings, lead_data, application_id=None):
                 'first_name': lead_data.get('first_name', ''),
                 'last_name': lead_data.get('last_name', ''),
                 'phone': lead_data.get('phone', ''),
-                'email': lead_data.get('email', ''),
+                'email': lead_data.get('email') or 'noemail@telegram.bot',  # AlphaCRM требует email
                 'ip': lead_data.get('ip', '127.0.0.1'),
                 'source': settings.get('source', 'telegram_bot'),
                 'sub1': lead_data.get('country', ''),
