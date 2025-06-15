@@ -54,15 +54,16 @@
     <div class="row mb-3">
         <div class="col">
             <div class="alert alert-info mb-0">
-                Найдено пользователей: <strong>{{ users|length }}</strong>
-                {% if total_count %}
-                из <strong>{{ total_count }}</strong>
+                Найдено пользователей: <strong>{{ total_count }}</strong>
+                из <strong>{{ all_users_count }}</strong>
+                {% if total_pages > 1 %}
+                | Страница {{ page }} из {{ total_pages }}
                 {% endif %}
             </div>
         </div>
     </div>
     
-    <!-- Таблица пользователей -->
+    <!-- Таблица -->
     <div class="card">
         <div class="card-body">
             <div class="table-responsive">
@@ -125,11 +126,38 @@
                     </tbody>
                 </table>
             </div>
+            
+            <!-- Пагинация -->
+            {% if total_pages > 1 %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('users', page=page-1, **request.args) }}">Предыдущая</a>
+                    </li>
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
+                            <li class="page-item {% if p == page %}active{% endif %}">
+                                <a class="page-link" href="{{ url_for('users', page=p, **request.args) }}">{{ p }}</a>
+                            </li>
+                        {% elif p == 4 and page > 5 %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% elif p == total_pages - 3 and page < total_pages - 4 %}
+                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('users', page=page+1, **request.args) }}">Следующая</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
         </div>
     </div>
 </div>
 
-<!-- Модальное окно подтверждения удаления -->
+<!-- Модальное окно удаления -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -146,7 +174,6 @@
                     <li>Историю действий</li>
                     <li>Реферальные связи</li>
                 </ul>
-                <p class="text-danger"><strong>Это действие необратимо!</strong></p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
@@ -161,7 +188,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
     let userIdToDelete = null;
     
-    // Обработчик кнопок удаления
     document.querySelectorAll('.delete-user').forEach(button => {
         button.addEventListener('click', function() {
             userIdToDelete = this.dataset.userId;
@@ -170,7 +196,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Подтверждение удаления
     document.getElementById('confirmDelete').addEventListener('click', async function() {
         if (!userIdToDelete) return;
         

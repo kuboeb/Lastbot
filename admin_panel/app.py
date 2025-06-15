@@ -230,18 +230,62 @@ def applications():
     conn = get_db_connection()
     cur = conn.cursor()
     
-    # Получаем параметры фильтров
+    # Параметры
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
     search = request.args.get('search', '')
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     country = request.args.get('country', '')
     source_type = request.args.get('source_type', '')
     preferred_time = request.args.get('preferred_time', '')
-    page = request.args.get('page', 1, type=int)
-    per_page = 50
     
     # Базовый запрос
-    query = """
+    base_query = """
+        FROM applications a
+        LEFT JOIN bot_users u ON a.user_id = u.user_id
+        WHERE 1=1
+    """
+    params = []
+    
+    # Фильтры
+    if search:
+        base_query += " AND (LOWER(a.full_name) LIKE LOWER(%s) OR a.phone LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        base_query += " AND a.created_at >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        base_query += " AND a.created_at <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    if country:
+        base_query += " AND LOWER(a.country) LIKE LOWER(%s)"
+        params.append(f'%{country}%')
+    
+    if source_type:
+        if source_type == 'direct':
+            base_query += " AND a.referrer_id IS NULL AND a.source_id IS NULL"
+        elif source_type == 'referral':
+            base_query += " AND a.referrer_id IS NOT NULL"
+        elif source_type == 'source':
+            base_query += " AND a.source_id IS NOT NULL"
+    
+    if preferred_time:
+        base_query += " AND a.preferred_time = %s"
+        params.append(preferred_time)
+    
+    # Подсчет общего количества
+    count_query = "SELECT COUNT(*) as total " + base_query
+    cur.execute(count_query, params)
+    total_count = cur.fetchone()['total']
+    total_pages = (total_count + per_page - 1) // per_page
+    
+    # Получение данных с пагинацией
+    offset = (page - 1) * per_page
+    data_query = """
         SELECT a.*, 
                u.username,
                CASE 
@@ -255,56 +299,11 @@ def applications():
                    ELSE NULL
                END as referrer_username,
                EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - a.created_at))/3600 as hours_ago
-        FROM applications a
-        LEFT JOIN bot_users u ON a.user_id = u.user_id
-        WHERE 1=1
-    """
-    params = []
-    
-    # Применяем фильтры
-    if search:
-        query += " AND (LOWER(a.full_name) LIKE LOWER(%s) OR a.phone LIKE %s)"
-        params.extend([f'%{search}%', f'%{search}%'])
-    
-    if date_from:
-        query += " AND a.created_at >= %s"
-        params.append(date_from)
-    
-    if date_to:
-        query += " AND a.created_at <= %s"
-        params.append(date_to + ' 23:59:59')
-    
-    if country:
-        query += " AND LOWER(a.country) LIKE LOWER(%s)"
-        params.append(f'%{country}%')
-    
-    if source_type:
-        if source_type == 'direct':
-            query += " AND a.referrer_id IS NULL AND a.source_id IS NULL"
-        elif source_type == 'referral':
-            query += " AND a.referrer_id IS NOT NULL"
-        elif source_type == 'source':
-            query += " AND a.source_id IS NOT NULL"
-    
-    if preferred_time:
-        query += " AND a.preferred_time = %s"
-        params.append(preferred_time)
-    
-    # Получаем общее количество для пагинации
-    count_query = "SELECT COUNT(*) as total FROM (" + query + ") as subquery"
-    cur.execute(count_query, params)
-    total_count = cur.fetchone()['total']
-    
-    # Добавляем пагинацию
-    offset = (page - 1) * per_page
-    query += " ORDER BY a.created_at DESC LIMIT %s OFFSET %s"
+    """ + base_query + " ORDER BY a.created_at DESC LIMIT %s OFFSET %s"
     params.extend([per_page, offset])
     
-    cur.execute(query, params)
+    cur.execute(data_query, params)
     applications = cur.fetchall()
-    
-    # Вычисляем страницы
-    total_pages = (total_count + per_page - 1) // per_page
     
     # Статистика
     today = get_local_time().date()
@@ -318,7 +317,7 @@ def applications():
     week_users = cur.fetchone()['count']
     conversion_rate = (week_applications / week_users * 100) if week_users > 0 else 0
     
-    # Список стран для фильтра
+    # Список стран
     cur.execute("SELECT DISTINCT country FROM applications WHERE country IS NOT NULL ORDER BY country")
     countries = [row['country'] for row in cur.fetchall()]
     
@@ -327,13 +326,13 @@ def applications():
     
     return render_template('applications.html', 
                          applications=applications,
-                         today_count=today_count,
-                         conversion_rate=conversion_rate,
-                         countries=countries,
                          page=page,
                          total_pages=total_pages,
                          total_count=total_count,
-                         per_page=per_page)
+                         per_page=per_page,
+                         today_count=today_count,
+                         conversion_rate=conversion_rate,
+                         countries=countries)
 
 @app.route('/export_applications')
 @login_required
@@ -437,17 +436,16 @@ def users():
     conn = get_db_connection()
     cur = conn.cursor()
     
-    # Получаем параметры фильтров
+    # Параметры
+    page = request.args.get('page', 1, type=int)
+    per_page = 50
     search = request.args.get('search', '')
     has_application = request.args.get('has_application', '')
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     
     # Базовый запрос
-    query = """
-        SELECT u.*, 
-               COUNT(DISTINCT a.id) as has_application,
-               COUNT(DISTINCT r.referred_id) as referrals_count
+    base_query = """
         FROM bot_users u
         LEFT JOIN applications a ON u.user_id = a.user_id
         LEFT JOIN referrals r ON u.user_id = r.referrer_id
@@ -455,40 +453,61 @@ def users():
     """
     params = []
     
-    # Добавляем условия фильтрации
+    # Фильтры
     if search:
-        query += " AND (u.username ILIKE %s OR CAST(u.user_id AS TEXT) LIKE %s)"
+        base_query += " AND (u.username ILIKE %s OR CAST(u.user_id AS TEXT) LIKE %s)"
         params.extend([f'%{search}%', f'%{search}%'])
     
     if date_from:
-        query += " AND u.first_seen >= %s"
+        base_query += " AND u.first_seen >= %s"
         params.append(date_from)
     
     if date_to:
-        query += " AND u.first_seen <= %s"
+        base_query += " AND u.first_seen <= %s"
         params.append(date_to + ' 23:59:59')
     
-    query += " GROUP BY u.id, u.user_id, u.username, u.first_seen, u.last_activity, u.source_id, u.has_application, u.is_blocked"
+    # Группировка для подсчета
+    group_by = " GROUP BY u.id, u.user_id, u.username, u.first_seen, u.last_activity, u.source_id, u.has_application, u.is_blocked"
     
     # Фильтр по наличию заявки
+    having_clause = ""
     if has_application == '1':
-        query += " HAVING COUNT(DISTINCT a.id) > 0"
+        having_clause = " HAVING COUNT(DISTINCT a.id) > 0"
     elif has_application == '0':
-        query += " HAVING COUNT(DISTINCT a.id) = 0"
+        having_clause = " HAVING COUNT(DISTINCT a.id) = 0"
     
-    query += " ORDER BY u.first_seen DESC"
+    # Подсчет общего количества
+    count_query = "SELECT COUNT(*) as total FROM (SELECT u.id " + base_query + group_by + having_clause + ") as subquery"
+    cur.execute(count_query, params)
+    total_count = cur.fetchone()['total']
+    total_pages = (total_count + per_page - 1) // per_page
     
-    cur.execute(query, params)
+    # Получение данных с пагинацией
+    offset = (page - 1) * per_page
+    data_query = """
+        SELECT u.*, 
+               COUNT(DISTINCT a.id) as has_application,
+               COUNT(DISTINCT r.referred_id) as referrals_count
+    """ + base_query + group_by + having_clause + " ORDER BY u.first_seen DESC LIMIT %s OFFSET %s"
+    params.extend([per_page, offset])
+    
+    cur.execute(data_query, params)
     users = cur.fetchall()
     
-    # Общее количество пользователей
+    # Общее количество всех пользователей
     cur.execute("SELECT COUNT(*) as count FROM bot_users")
-    total_count = cur.fetchone()['count']
+    all_users_count = cur.fetchone()['count']
     
     cur.close()
     conn.close()
     
-    return render_template('users.html', users=users, total_count=total_count)
+    return render_template('users.html', 
+                         users=users,
+                         page=page,
+                         total_pages=total_pages,
+                         total_count=total_count,
+                         all_users_count=all_users_count,
+                         per_page=per_page)
 
 @app.route('/export_users')
 @login_required
