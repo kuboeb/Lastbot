@@ -32,6 +32,7 @@ def send_to_crm(integration_type, settings, lead_data, application_id=None):
             }
             
             # Отправка запроса
+            print(f"Sending payload: {payload}")
             response = requests.post(url, json=payload, headers=headers, timeout=10)
             
             if response.status_code in [200, 201]:

@@ -73,7 +73,7 @@ def send_application_to_active_crms(application_id):
                     integration['id'],
                     application_id,
                     'success' if result.get('success') else 'error',
-                    json.dumps(lead_data),
+                    json.dumps(payload),
                     json.dumps(result.get('response', {})),
                     result.get('error', '')
                 ))
