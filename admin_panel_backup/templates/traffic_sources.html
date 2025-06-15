@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Источники трафика - Админ панель{% endblock %}
+
+{% block extra_css %}
+<style>
+    .source-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,.1);
+        transition: all 0.3s;
+    }
+    .source-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(0,0,0,.15);
+    }
+    .platform-badge {
+        font-size: 0.875rem;
+        padding: 5px 10px;
+    }
+    .stats-box {
+        background: #f8f9fa;
+        border-radius: 5px;
+        padding: 15px;
+        text-align: center;
+        margin: 10px 0;
+    }
+    .stats-number {
+        font-size: 24px;
+        font-weight: bold;
+        color: #333;
+    }
+    .stats-label {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    .link-box {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 0.875rem;
+        word-break: break-all;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">Источники трафика</h1>
+        <button class="btn btn-success" onclick="createSource()">
+            <i class="fas fa-plus"></i> Создать источник
+        </button>
+    </div>
+    
+    {% if sources %}
+        {% for source in sources %}
+            <div class="source-card">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h4>{{ source.name }}</h4>
+                        <span class="badge bg-primary platform-badge">{{ source.platform|upper }}</span>
+                        {% if source.is_active %}
+                            <span class="badge bg-success">Активен</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Неактивен</span>
+                        {% endif %}
+                        
+                        <div class="mt-3">
+                            <label class="form-label">Ссылка для баера:</label>
+                            <div class="link-box">
+                                https://t.me/cryplace_bot?start=src_{{ source.tracking_code }}
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary mt-2" 
+                                    onclick="copyLink('src_{{ source.tracking_code }}')">
+                                <i class="fas fa-copy"></i> Копировать ссылку
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div class="col-4">
+                                <div class="stats-box">
+                                    <div class="stats-number">{{ source.clicks }}</div>
+                                    <div class="stats-label">Кликов</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stats-box">
+                                    <div class="stats-number">{{ source.leads }}</div>
+                                    <div class="stats-label">Лидов</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stats-box">
+                                    <div class="stats-number">{{ source.cr }}%</div>
+                                    <div class="stats-label">CR</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-end mt-3">
+                            <button class="btn btn-sm btn-info" onclick="testConversion({{ source.id }})">
+                                <i class="fas fa-vial"></i> Тест конверсии
+                            </button>
+                            <button class="btn btn-sm btn-warning" onclick="editSource({{ source.id }})">
+                                <i class="fas fa-edit"></i> Редактировать
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteSource({{ source.id }})">
+                                <i class="fas fa-trash"></i> Удалить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Источники трафика еще не созданы. 
+            Нажмите "Создать источник" для добавления.
+        </div>
+    {% endif %}
+</div>
+
+<!-- Модальное окно создания источника -->
+<div class="modal fade" id="sourceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Создание источника трафика</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sourceForm">
+                    <div class="mb-3">
+                        <label class="form-label">Название</label>
+                        <input type="text" class="form-control" id="sourceName" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Платформа</label>
+                        <select class="form-select" id="sourcePlatform" onchange="showPlatformFields()">
+                            <option value="">Выберите платформу</option>
+                            <option value="facebook">Facebook Ads</option>
+                            <option value="google">Google Ads</option>
+                            <option value="telegram_ads">Telegram Ads</option>
+                            <option value="propellerads">PropellerAds</option>
+                            <option value="evadav">Evadav</option>
+                            <option value="richads">RichAds</option>
+                            <option value="pushhouse">PushHouse</option>
+                            <option value="onclick">OnClick</option>
+                        </select>
+                    </div>
+                    
+                    <div id="platformFields">
+                        <!-- Динамические поля загружаются через JS -->
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveSource()">
+                    <i class="fas fa-save"></i> Создать
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyLink(code) {
+    const link = `https://t.me/cryplace_bot?start=${code}`;
+    navigator.clipboard.writeText(link).then(function() {
+        alert('Ссылка скопирована!');
+    });
+}
+
+function createSource() {
+    $('#sourceForm')[0].reset();
+    $('#platformFields').empty();
+    $('#sourceModal').modal('show');
+}
+
+function showPlatformFields() {
+    const platform = $('#sourcePlatform').val();
+    const fieldsContainer = $('#platformFields');
+    fieldsContainer.empty();
+    
+    const fields = {
+        'facebook': [
+            { name: 'pixel_id', label: 'Pixel ID', type: 'text' },
+            { name: 'access_token', label: 'Access Token', type: 'text' }
+        ],
+        'google': [
+            { name: 'conversion_id', label: 'Conversion ID', type: 'text' },
+            { name: 'conversion_label', label: 'Conversion Label', type: 'text' },
+            { name: 'developer_token', label: 'Developer Token', type: 'text' }
+        ],
+        'telegram_ads': [
+            { name: 'api_token', label: 'API Token', type: 'text' }
+        ],
+        'propellerads': [
+            { name: 'postback_url', label: 'Postback URL', type: 'text' }
+        ],
+        'evadav': [
+            { name: 'campaign_id', label: 'Campaign ID', type: 'text' },
+            { name: 'postback_token', label: 'Postback Token', type: 'text' }
+        ],
+        'richads': [
+            { name: 'api_key', label: 'API Key', type: 'text' },
+            { name: 'campaign_id', label: 'Campaign ID', type: 'text' }
+        ],
+        'pushhouse': [
+            { name: 'source_id', label: 'Source ID', type: 'text' },
+            { name: 'postback_url', label: 'Postback URL', type: 'text' }
+        ],
+        'onclick': [
+            { name: 'api_token', label: 'API Token', type: 'text' },
+            { name: 'goal_id', label: 'Goal ID', type: 'text' }
+        ]
+    };
+    
+    if (fields[platform]) {
+        fields[platform].forEach(field => {
+            fieldsContainer.append(`
+                <div class="mb-3">
+                    <label class="form-label">${field.label}</label>
+                    <input type="${field.type}" class="form-control" name="${field.name}" required>
+                </div>
+            `);
+        });
+    }
+}
+
+function saveSource() {
+    // TODO: Сохранение источника
+    alert('Источник создан!');
+    $('#sourceModal').modal('hide');
+}
+
+function testConversion(sourceId) {
+    if (confirm('Отправить тестовую конверсию?')) {
+        // TODO: Тест конверсии
+        alert('Тестовая конверсия отправлена');
+    }
+}
+
+function editSource(sourceId) {
+    // TODO: Редактирование источника
+    alert('Редактирование источника #' + sourceId);
+}
+
+function deleteSource(sourceId) {
+    if (confirm('Удалить источник?')) {
+        // TODO: Удаление источника
+        location.reload();
+    }
+}
+</script>
+{% endblock %}

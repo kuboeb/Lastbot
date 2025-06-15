@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}Пользователи - Админ панель{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2">Пользователи бота</h1>
+        <div>
+            <span class="badge bg-info">Всего: {{ total }}</span>
+        </div>
+    </div>
+    
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Статус заявки</label>
+                    <select name="has_application" class="form-select">
+                        <option value="">Все пользователи</option>
+                        <option value="yes" {% if request.args.get('has_application') == 'yes' %}selected{% endif %}>
+                            С заявкой
+                        </option>
+                        <option value="no" {% if request.args.get('has_application') == 'no' %}selected{% endif %}>
+                            Без заявки
+                        </option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Поиск по username</label>
+                    <input type="text" name="username" class="form-control" 
+                           placeholder="@username" value="{{ request.args.get('username', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> Найти
+                        </button>
+                        <a href="{{ url_for('users') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Сбросить
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Таблица пользователей -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Username</th>
+                            <th>Первый вход</th>
+                            <th>Последняя активность</th>
+                            <th>Источник</th>
+                            <th>Заявка</th>
+                            <th>Рефералы</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>{{ user.user_id }}</td>
+                            <td>
+                                {% if user.username %}
+                                    <a href="https://t.me/{{ user.username }}" target="_blank">
+                                        @{{ user.username }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.first_seen.strftime('%d.%m.%Y') }}</td>
+                            <td>
+                                {{ user.last_activity.strftime('%d.%m.%Y %H:%M') if user.last_activity else '-' }}
+                            </td>
+                            <td>
+                                {% if user.source %}
+                                    <span class="badge bg-info">{{ user.source.name }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Прямой</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.has_application %}
+                                    <span class="badge bg-success">✓ Есть</span>
+                                {% else %}
+                                    <span class="badge bg-warning">✗ Нет</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">0</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" 
+                                        onclick="sendMessage({{ user.user_id }})">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                                <button class="btn btn-sm btn-info" 
+                                        onclick="showHistory({{ user.user_id }})">
+                                    <i class="fas fa-history"></i>
+                                </button>
+                                {% if not user.is_blocked %}
+                                    <button class="btn btn-sm btn-danger" 
+                                            onclick="blockUser({{ user.user_id }})">
+                                        <i class="fas fa-ban"></i>
+                                    </button>
+                                {% else %}
+                                    <button class="btn btn-sm btn-success" 
+                                            onclick="unblockUser({{ user.user_id }})">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Пагинация -->
+            {% if total > per_page %}
+            <nav>
+                <ul class="pagination justify-content-center">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page - 1 }}">Предыдущая</a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for p in range(1, (total // per_page + 2)) %}
+                        {% if p <= 3 or p > (total // per_page - 2) or (page - 1 <= p <= page + 1) %}
+                        <li class="page-item {% if p == page %}active{% endif %}">
+                            <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < (total // per_page + 1) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page + 1 }}">Следующая</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для отправки сообщения -->
+<div class="modal fade" id="messageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Отправить сообщение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="messageForm">
+                    <input type="hidden" id="userId">
+                    <div class="mb-3">
+                        <label class="form-label">Сообщение</label>
+                        <textarea class="form-control" id="messageText" rows="5" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Отправить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function sendMessage(userId) {
+    $('#userId').val(userId);
+    $('#messageModal').modal('show');
+}
+
+function showHistory(userId) {
+    // TODO: Показать историю действий пользователя
+    alert('История пользователя ' + userId);
+}
+
+function blockUser(userId) {
+    if (confirm('Заблокировать пользователя?')) {
+        // TODO: Блокировка пользователя
+        location.reload();
+    }
+}
+
+function unblockUser(userId) {
+    if (confirm('Разблокировать пользователя?')) {
+        // TODO: Разблокировка пользователя
+        location.reload();
+    }
+}
+
+$('#messageForm').submit(function(e) {
+    e.preventDefault();
+    // TODO: Отправка сообщения
+    $('#messageModal').modal('hide');
+    alert('Сообщение отправлено');
+});
+</script>
+{% endblock %}

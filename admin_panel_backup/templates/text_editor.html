@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Редактор текстов - Админ панель{% endblock %}
+
+{% block extra_css %}
+<style>
+    .text-category {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .text-item {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .text-item:hover {
+        box-shadow: 0 2px 10px rgba(0,0,0,.1);
+        transform: translateY(-2px);
+    }
+    .text-key {
+        font-family: monospace;
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    .text-preview {
+        margin-top: 10px;
+        white-space: pre-wrap;
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h2 mb-4">Редактор текстов бота</h1>
+    
+    <div class="alert alert-info mb-4">
+        <i class="fas fa-info-circle"></i> Нажмите на текст для редактирования. 
+        Поддерживаются переменные: {full_name}, {referral_link}, {phone}, {country}, {preferred_time}
+    </div>
+    
+    {% for category, texts in categories.items() %}
+        <div class="text-category">
+            <h3 class="mb-3">
+                {% if category == 'main' %}
+                    <i class="fas fa-home"></i> Основные тексты
+                {% elif category == 'registration' %}
+                    <i class="fas fa-clipboard-list"></i> Регистрация
+                {% elif category == 'info' %}
+                    <i class="fas fa-info"></i> Информационные
+                {% elif category == 'errors' %}
+                    <i class="fas fa-exclamation-triangle"></i> Ошибки
+                {% else %}
+                    <i class="fas fa-file-alt"></i> {{ category|title }}
+                {% endif %}
+            </h3>
+            
+            {% for text in texts %}
+                <div class="text-item" onclick="editText({{ text.id }}, '{{ text.key }}')">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h5 class="mb-1">{{ text.key|replace('_', ' ')|title }}</h5>
+                            <span class="text-key">{{ text.key }}</span>
+                            <div class="text-preview">{{ text.text[:200] }}{% if text.text|length > 200 %}...{% endif %}</div>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted">
+                                Обновлено: {{ text.updated_at.strftime('%d.%m.%Y %H:%M') if text.updated_at else 'Никогда' }}
+                            </small>
+                            <br>
+                            <button class="btn btn-sm btn-primary mt-2">
+                                <i class="fas fa-edit"></i> Редактировать
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Модальное окно редактирования -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактирование текста</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <input type="hidden" id="textId">
+                    <div class="mb-3">
+                        <label class="form-label">Ключ</label>
+                        <input type="text" class="form-control" id="textKey" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Текст</label>
+                        <textarea class="form-control" id="textContent" rows="10" required></textarea>
+                        <small class="form-text text-muted">
+                            Доступные переменные: {full_name}, {referral_link}, {phone}, {country}, {preferred_time}
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Предпросмотр</label>
+                        <div class="border rounded p-3 bg-light" id="preview">
+                            <!-- Предпросмотр загружается через JS -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveText()">
+                    <i class="fas fa-save"></i> Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentTextId = null;
+
+function editText(id, key) {
+    currentTextId = id;
+    $('#textId').val(id);
+    $('#textKey').val(key);
+    
+    // Загружаем текущий текст
+    $.get(`/admin/api/text/${id}`)
+        .done(function(data) {
+            $('#textContent').val(data.text);
+            updatePreview();
+            $('#editModal').modal('show');
+        })
+        .fail(function() {
+            alert('Ошибка загрузки текста');
+        });
+}
+
+function updatePreview() {
+    let text = $('#textContent').val();
+    
+    // Заменяем переменные на примеры
+    text = text.replace(/{full_name}/g, 'Иван Иванов');
+    text = text.replace(/{referral_link}/g, 'https://t.me/bot?start=ref123456');
+    text = text.replace(/{phone}/g, '+34123456789');
+    text = text.replace(/{country}/g, 'Испания');
+    text = text.replace(/{preferred_time}/g, '12:00 - 15:00');
+    
+    $('#preview').html(text.replace(/\n/g, '<br>'));
+}
+
+$('#textContent').on('input', updatePreview);
+
+function saveText() {
+    const id = $('#textId').val();
+    const text = $('#textContent').val();
+    
+    $.ajax({
+        url: `/admin/api/text/${id}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify({ text: text }),
+        success: function() {
+            $('#editModal').modal('hide');
+            alert('Текст сохранен');
+            location.reload();
+        },
+        error: function() {
+            alert('Ошибка сохранения');
+        }
+    });
+}
+</script>
+{% endblock %}
