@@ -94,8 +94,8 @@
                                     <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
-                            <td>{{ user.first_seen.strftime('%d.%m.%Y %H:%M') if user.first_seen else '-' }}</td>
-                            <td>{{ user.last_activity.strftime('%d.%m.%Y %H:%M') if user.last_activity else '-' }}</td>
+                            <td>{{ user.first_seen|datetime }}</td>
+                            <td>{{ user.last_activity|datetime }}</td>
                             <td>
                                 {% if user.has_application > 0 %}
                                     <span class="badge bg-success">Да</span>

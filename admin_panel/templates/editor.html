@@ -40,7 +40,7 @@
                     <div class="preview" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px;">{{ text.text }}</div>
                     {% if text.updated_at %}
                     <small class="text-muted d-block mt-2">
-                        Обновлено: {{ text.updated_at.strftime('%d.%m.%Y %H:%M') }}
+                        Обновлено: {{ text.updated_at|datetime }}
                     </small>
                     {% endif %}
                 </div>

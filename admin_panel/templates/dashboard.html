@@ -193,7 +193,7 @@
                                     <td>{{ app.country }}</td>
                                     <td>{{ app.phone }}</td>
                                     <td>{{ app.preferred_time }}</td>
-                                    <td>{{ app.created_at.strftime('%d.%m.%Y %H:%M') if app.created_at else '-' }}</td>
+                                    <td>{{ app.created_at|datetime }}</td>
                                     <td>
                                         {% if app.referrer_id %}
                                             <span class="badge bg-success">Реферал</span>

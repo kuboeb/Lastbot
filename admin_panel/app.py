@@ -1,12 +1,19 @@
 """
 Админ-панель для управления ботом
 """
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_file
+from flask import Flask, render_template
+
+def format_datetime(dt):
+    '''Форматировать datetime для отображения'''
+    if dt and hasattr(dt, 'astimezone'):
+        return dt.astimezone(TIMEZONE).strftime('%d.%m.%Y %H:%M')
+    return '-', redirect, url_for, request, flash, jsonify, send_file
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
+import pytz
 import os
 import io
 from dotenv import load_dotenv
@@ -16,10 +23,21 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
 
+# Временная зона GMT+3 (Москва)
+TIMEZONE = pytz.timezone('Europe/Moscow')
+
+def get_local_time():
+    '''Получить текущее время в GMT+3'''
+    return datetime.now(TIMEZONE)
+
 # Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+@app.template_filter('datetime')
+def datetime_filter(dt):
+    return format_datetime(dt)
 
 # Подключение к БД
 def get_db_connection():
@@ -92,7 +110,7 @@ def dashboard():
     cur = conn.cursor()
     
     # Статистика за сегодня
-    today = datetime.now().date()
+    today = get_local_time().date()
     cur.execute("""
         SELECT COUNT(*) as count FROM applications 
         WHERE DATE(created_at) = %s
@@ -366,7 +384,7 @@ def export_users():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'users_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        download_name=f'users_{get_local_time().strftime("%Y%m%d_%H%M%S")}.xlsx'
     )
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
