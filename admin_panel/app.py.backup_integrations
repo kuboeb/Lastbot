@@ -772,6 +772,7 @@ def init_admin():
     cur.close()
     conn.close()
 
+
 # ===== ИСТОЧНИКИ ТРАФИКА =====
 
 @app.route('/traffic-sources')
@@ -1023,6 +1024,7 @@ def toggle_traffic_source(source_id):
         cur.close()
         conn.close()
 
+
 @app.route('/traffic-sources/<int:source_id>/delete', methods=['POST'])
 @login_required
 def delete_traffic_source(source_id):
@@ -1063,6 +1065,7 @@ def delete_traffic_source(source_id):
         cur.close()
         conn.close()
 
+
 @app.route('/traffic-sources/<int:source_id>/force-delete', methods=['POST'])
 @login_required
 def force_delete_traffic_source(source_id):
@@ -1089,6 +1092,9 @@ def force_delete_traffic_source(source_id):
     finally:
         cur.close()
         conn.close()
+
+
+
 
 # ===== РАССЫЛКИ =====
 
@@ -1412,9 +1418,16 @@ def broadcast_stats(broadcast_id):
 def test():
     return "Test works!"
 
+
+
+
+
+
+@app.route('/test-integrations')
 def test_integrations():
     """Тестовая страница интеграций без авторизации"""
     return "Integrations route works!"
+
 
 @app.route('/debug-session')
 def debug_session():
@@ -1428,6 +1441,10 @@ def debug_session():
     <a href="/login">Login</a> | <a href="/integrations">Integrations</a>
     """
 
+
+
+@app.route('/integrations')
+@login_required
 def integrations():
     """Страница управления интеграциями"""
     print("DEBUG: Entering integrations function")
@@ -1496,6 +1513,9 @@ def integrations():
         flash(f'Ошибка: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
 
+
+@app.route('/integrations/create', methods=['GET', 'POST'])
+@login_required
 def create_integration():
     """Создание новой интеграции"""
     if request.method == 'POST':
@@ -1535,6 +1555,10 @@ def create_integration():
     
     return render_template('create_integration.html')
 
+
+
+@app.route('/integrations/<int:integration_id>/test', methods=['POST'])
+@login_required
 def test_integration(integration_id):
     """Тестирование интеграции"""
     conn = get_db_connection()
@@ -1587,6 +1611,10 @@ def test_integration(integration_id):
         cur.close()
         conn.close()
 
+
+
+@app.route('/integrations/<int:integration_id>/toggle', methods=['POST'])
+@login_required
 def toggle_integration(integration_id):
     """Включение/выключение интеграции"""
     conn = get_db_connection()
@@ -1609,6 +1637,10 @@ def toggle_integration(integration_id):
         cur.close()
         conn.close()
 
+
+
+@app.route('/integrations/<int:integration_id>/delete', methods=['POST'])
+@login_required
 def delete_integration(integration_id):
     """Удаление интеграции"""
     conn = get_db_connection()
@@ -1628,258 +1660,6 @@ def delete_integration(integration_id):
     finally:
         cur.close()
         conn.close()
-
-
-# ==================== ИНТЕГРАЦИИ С CRM ====================
-
-@app.route('/integrations')
-@login_required
-def integrations():
-    """Страница управления интеграциями CRM"""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        # Получаем список интеграций
-        cur.execute("""
-            SELECT id, name, type, settings, is_active, created_at
-            FROM integrations
-            ORDER BY created_at DESC
-        """)
-        
-        integrations_list = []
-        for row in cur.fetchall():
-            integration = {
-                'id': row[0],
-                'name': row[1],
-                'type': row[2],
-                'settings': row[3] or {},
-                'is_active': row[4],
-                'created_at': row[5]
-            }
-            
-            # Скрываем API ключ для безопасности
-            if 'api_key' in integration['settings']:
-                api_key = integration['settings']['api_key']
-                if api_key and len(api_key) > 10:
-                    integration['settings']['api_key'] = api_key[:10] + '...'
-            
-            # Получаем статистику отправок
-            cur.execute("""
-                SELECT 
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN status = 'success' THEN 1 END) as success,
-                    COUNT(CASE WHEN status = 'error' THEN 1 END) as error,
-                    MAX(created_at) as last_send
-                FROM integration_logs
-                WHERE integration_id = %s
-            """, (integration['id'],))
-            
-            stats_row = cur.fetchone()
-            integration['stats'] = {
-                'total': stats_row[0] if stats_row else 0,
-                'success': stats_row[1] if stats_row else 0,
-                'error': stats_row[2] if stats_row else 0,
-                'last_send': stats_row[3] if stats_row else None
-            }
-            
-            integrations_list.append(integration)
-        
-        cur.close()
-        conn.close()
-        
-        return render_template('integrations.html', integrations=integrations_list)
-        
-    except Exception as e:
-        cur.close()
-        conn.close()
-        app.logger.error(f"Error in integrations: {str(e)}")
-        flash(f'Ошибка при загрузке интеграций: {str(e)}', 'danger')
-        return redirect(url_for('dashboard'))
-
-
-@app.route('/integrations/create', methods=['GET', 'POST'])
-@login_required
-def create_integration():
-    """Создание новой интеграции"""
-    if request.method == 'POST':
-        name = request.form.get('name')
-        integration_type = request.form.get('type')
-        
-        settings = {}
-        if integration_type == 'alphacrm':
-            settings = {
-                'domain': request.form.get('domain', 'api.alphacrm.cc'),
-                'aff_id': request.form.get('aff_id'),
-                'api_key': request.form.get('api_key'),
-                'source': request.form.get('source', 'telegram_bot')
-            }
-        
-        if not name or not integration_type:
-            flash('Заполните все обязательные поля', 'danger')
-            return render_template('create_integration.html')
-        
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
-        try:
-            cur.execute("""
-                INSERT INTO integrations (name, type, settings)
-                VALUES (%s, %s, %s)
-                RETURNING id
-            """, (name, integration_type, json.dumps(settings)))
-            
-            new_id = cur.fetchone()[0]
-            conn.commit()
-            cur.close()
-            conn.close()
-            
-            flash(f'Интеграция "{name}" успешно создана!', 'success')
-            return redirect(url_for('integrations'))
-            
-        except Exception as e:
-            conn.rollback()
-            cur.close()
-            conn.close()
-            app.logger.error(f"Error creating integration: {str(e)}")
-            flash(f'Ошибка создания интеграции: {str(e)}', 'danger')
-            return render_template('create_integration.html')
-    
-    return render_template('create_integration.html')
-
-
-@app.route('/integrations/<int:integration_id>/test', methods=['POST'])
-@login_required
-def test_integration(integration_id):
-    """Тестирование интеграции"""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        # Получаем данные интеграции
-        cur.execute("""
-            SELECT name, type, settings
-            FROM integrations
-            WHERE id = %s
-        """, (integration_id,))
-        
-        row = cur.fetchone()
-        if not row:
-            return jsonify({'success': False, 'error': 'Интеграция не найдена'})
-        
-        name, integration_type, settings = row
-        
-        # Тестовые данные
-        test_lead = {
-            'first_name': 'Тест',
-            'last_name': 'Тестов',
-            'phone': '+79001234567',
-            'email': 'test@example.com',
-            'country': 'Россия',
-            'user_id': '123456789',
-            'username': 'testuser'
-        }
-        
-        # Импортируем функцию отправки
-        from integrations import send_to_crm
-        result = send_to_crm(integration_type, settings, test_lead)
-        
-        # Логируем результат
-        cur.execute("""
-            INSERT INTO integration_logs 
-            (integration_id, application_id, status, request_data, response_data, error_message)
-            VALUES (%s, NULL, %s, %s, %s, %s)
-        """, (
-            integration_id,
-            'success' if result.get('success') else 'error',
-            json.dumps(test_lead),
-            json.dumps(result.get('response', {})),
-            result.get('error', '')
-        ))
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        if result.get('success'):
-            return jsonify({
-                'success': True,
-                'message': f'Тест успешен! Лид отправлен в {name}'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': result.get('error', 'Неизвестная ошибка')
-            })
-        
-    except Exception as e:
-        cur.close()
-        conn.close()
-        app.logger.error(f"Error testing integration: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)})
-
-
-@app.route('/integrations/<int:integration_id>/toggle', methods=['POST'])
-@login_required
-def toggle_integration(integration_id):
-    """Включение/выключение интеграции"""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        cur.execute("""
-            UPDATE integrations 
-            SET is_active = NOT is_active
-            WHERE id = %s
-            RETURNING is_active
-        """, (integration_id,))
-        
-        new_status = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'is_active': new_status
-        })
-        
-    except Exception as e:
-        conn.rollback()
-        cur.close()
-        conn.close()
-        app.logger.error(f"Error toggling integration: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)})
-
-
-@app.route('/integrations/<int:integration_id>/delete', methods=['POST'])
-@login_required
-def delete_integration(integration_id):
-    """Удаление интеграции"""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        # Удаляем сначала логи
-        cur.execute("DELETE FROM integration_logs WHERE integration_id = %s", (integration_id,))
-        # Затем саму интеграцию
-        cur.execute("DELETE FROM integrations WHERE id = %s", (integration_id,))
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        flash('Интеграция успешно удалена', 'success')
-        return redirect(url_for('integrations'))
-        
-    except Exception as e:
-        conn.rollback()
-        cur.close()
-        conn.close()
-        app.logger.error(f"Error deleting integration: {str(e)}")
-        flash(f'Ошибка удаления: {str(e)}', 'danger')
-        return redirect(url_for('integrations'))
-
 
 
 
