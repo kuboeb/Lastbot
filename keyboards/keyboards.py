@@ -36,7 +36,7 @@ def get_registration_keyboard():
 def get_main_menu_new_user():
     """Главное меню для новых пользователей"""
     keyboard = [
-        [InlineKeyboardButton(text="�� Записаться на курс", callback_data="apply")],
+        [InlineKeyboardButton(text="✅ Записаться на курс", callback_data="apply")],
         [
             InlineKeyboardButton(text="📚 О курсе", callback_data="about_course"),
             InlineKeyboardButton(text="💬 Отзывы", callback_data="reviews")
