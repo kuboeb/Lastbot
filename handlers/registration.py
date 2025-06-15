@@ -19,6 +19,7 @@ from keyboards.keyboards import (
     get_reply_keyboard_existing_user
 )
 from utils import messages
+from utils.db_texts import get_text
 from utils.datetime_utils import get_current_datetime
 from config import config
 
@@ -64,7 +65,7 @@ async def start_registration(message: Message, state: FSMContext):
         
         if existing_app:
             await message.answer(
-                messages.ALREADY_APPLIED,
+                get_text("ALREADY_APPLIED", messages.ALREADY_APPLIED),
                 reply_markup=get_back_button()
             )
             return
@@ -74,7 +75,7 @@ async def start_registration(message: Message, state: FSMContext):
         await session.commit()
     
     await state.set_state(RegistrationStates.waiting_for_name)
-    await message.answer(messages.ASK_NAME, reply_markup=get_registration_keyboard())
+    await message.answer(get_text("ASK_NAME", messages.ASK_NAME), reply_markup=get_registration_keyboard())
 
 @router.message(RegistrationStates.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
@@ -107,7 +108,7 @@ async def process_name(message: Message, state: FSMContext):
         await session.commit()
     
     await state.set_state(RegistrationStates.waiting_for_country)
-    await message.answer(messages.ASK_COUNTRY, reply_markup=get_registration_keyboard())
+    await message.answer(get_text("ASK_COUNTRY", messages.ASK_COUNTRY), reply_markup=get_registration_keyboard())
 
 @router.message(RegistrationStates.waiting_for_country)
 async def process_country(message: Message, state: FSMContext):
@@ -115,7 +116,7 @@ async def process_country(message: Message, state: FSMContext):
     # Проверяем, не нажата ли кнопка "Назад"
     if message.text == messages.BTN_BACK:
         await state.set_state(RegistrationStates.waiting_for_name)
-        await message.answer(messages.ASK_NAME, reply_markup=get_registration_keyboard())
+        await message.answer(get_text("ASK_NAME", messages.ASK_NAME), reply_markup=get_registration_keyboard())
         return
     
     country = message.text.strip()
@@ -128,7 +129,7 @@ async def process_country(message: Message, state: FSMContext):
     # Проверка на Украину
     ukraine_variants = ['украина', 'ukraine', 'україна', 'ua', 'укр']
     if any(variant in country.lower() for variant in ukraine_variants):
-        await message.answer(messages.UKRAINE_RESTRICTION)
+        await message.answer(get_text("UKRAINE_RESTRICTION", messages.UKRAINE_RESTRICTION))
         await state.clear()
         # Возвращаемся в главное меню
         from handlers.start import cmd_start
@@ -143,7 +144,7 @@ async def process_country(message: Message, state: FSMContext):
         await session.commit()
     
     await state.set_state(RegistrationStates.waiting_for_phone)
-    await message.answer(messages.ASK_PHONE, reply_markup=get_registration_keyboard())
+    await message.answer(get_text("ASK_PHONE", messages.ASK_PHONE), reply_markup=get_registration_keyboard())
 
 @router.message(RegistrationStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
@@ -151,7 +152,7 @@ async def process_phone(message: Message, state: FSMContext):
     # Проверяем, не нажата ли кнопка "Назад"
     if message.text == messages.BTN_BACK:
         await state.set_state(RegistrationStates.waiting_for_country)
-        await message.answer(messages.ASK_COUNTRY, reply_markup=get_registration_keyboard())
+        await message.answer(get_text("ASK_COUNTRY", messages.ASK_COUNTRY), reply_markup=get_registration_keyboard())
         return
     
     phone = message.text.strip()
@@ -177,7 +178,7 @@ async def process_phone(message: Message, state: FSMContext):
     
     await state.set_state(RegistrationStates.waiting_for_time)
     await message.answer(
-        messages.ASK_TIME,
+        get_text("ASK_TIME", messages.ASK_TIME),
         reply_markup=get_time_selection_keyboard()
     )
 
@@ -294,7 +295,7 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
 async def edit_registration(callback: CallbackQuery, state: FSMContext):
     """Редактирование данных"""
     await state.set_state(RegistrationStates.waiting_for_name)
-    await callback.message.answer(messages.ASK_NAME, reply_markup=get_registration_keyboard())
+    await callback.message.answer(get_text("ASK_NAME", messages.ASK_NAME), reply_markup=get_registration_keyboard())
     await callback.answer()
 
 @router.message(F.text == messages.BTN_BACK)

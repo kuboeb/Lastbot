@@ -19,6 +19,7 @@ from keyboards.keyboards import (
     get_back_button
 )
 from utils import messages
+from utils.db_texts import get_text
 from utils.datetime_utils import normalize_datetime, get_current_datetime
 
 router = Router(name="start")
@@ -125,7 +126,7 @@ async def cmd_start(message: Message, state: FSMContext):
             referrals_count = result.scalar() or 0
             
             await message.answer(
-                messages.WELCOME_EXISTING_USER.format(
+                get_text("WELCOME_EXISTING_USER", messages.WELCOME_EXISTING_USER).format(
                     referral_link=referral_link,
                     referrals_count=referrals_count
                 ),
@@ -151,7 +152,7 @@ async def cmd_start(message: Message, state: FSMContext):
                     )
             
             await message.answer(
-                messages.WELCOME_NEW_USER,
+                get_text("WELCOME_NEW_USER", messages.WELCOME_NEW_USER),
                 reply_markup=get_reply_keyboard_new_user()
             )
             await message.answer(
@@ -185,7 +186,7 @@ async def show_referral_link(message: Message):
             referrals_count = result.scalar() or 0
             
             await message.answer(
-                messages.REFERRAL_INFO.format(
+                get_text("REFERRAL_INFO", messages.REFERRAL_INFO).format(
                     referral_link=referral_link,
                     referrals_count=referrals_count
                 ),
@@ -224,7 +225,7 @@ async def back_to_menu(callback: CallbackQuery, state: FSMContext):
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     """Команда помощи"""
-    await message.answer(messages.HELP_MESSAGE)
+    await message.answer(get_text("HELP_MESSAGE", messages.HELP_MESSAGE))
 
 @router.message(Command("apply"))
 async def cmd_apply(message: Message, state: FSMContext):

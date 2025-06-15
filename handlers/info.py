@@ -10,6 +10,7 @@ import random
 from database import db_manager, Application, Referral, BotUser
 from keyboards.keyboards import get_back_button
 from utils import messages
+from utils.db_texts import get_text
 
 router = Router(name="info")
 
@@ -36,7 +37,7 @@ REVIEWS = [
 async def show_program(callback: CallbackQuery):
     """Показать программу курса"""
     await callback.message.edit_text(
-        messages.COURSE_PROGRAM,
+        get_text("COURSE_PROGRAM", messages.COURSE_PROGRAM),
         reply_markup=get_back_button()
     )
     await callback.answer()
@@ -45,14 +46,14 @@ async def show_program(callback: CallbackQuery):
 async def show_program_msg(message: Message):
     """Показать программу курса через кнопку"""
     await message.answer(
-        messages.COURSE_PROGRAM,
+        get_text("COURSE_PROGRAM", messages.COURSE_PROGRAM),
         reply_markup=get_back_button()
     )
 
 async def show_program(message: Message):
     """Функция для показа программы (для команды)"""
     await message.answer(
-        messages.COURSE_PROGRAM,
+        get_text("COURSE_PROGRAM", messages.COURSE_PROGRAM),
         reply_markup=get_back_button()
     )
 
@@ -94,7 +95,7 @@ async def show_reviews(message: Message):
 async def show_faq(callback: CallbackQuery):
     """Показать FAQ"""
     await callback.message.edit_text(
-        messages.FAQ_TEXT,
+        get_text("FAQ_TEXT", messages.FAQ_TEXT),
         reply_markup=get_back_button()
     )
     await callback.answer()
@@ -103,7 +104,7 @@ async def show_faq(callback: CallbackQuery):
 async def show_faq_msg(message: Message):
     """Показать FAQ через кнопку"""
     await message.answer(
-        messages.FAQ_TEXT,
+        get_text("FAQ_TEXT", messages.FAQ_TEXT),
         reply_markup=get_back_button()
     )
 
@@ -111,7 +112,7 @@ async def show_faq_msg(message: Message):
 async def show_why_crypto(callback: CallbackQuery):
     """Почему крипто"""
     await callback.message.edit_text(
-        messages.WHY_CRYPTO,
+        get_text("WHY_CRYPTO", messages.WHY_CRYPTO),
         reply_markup=get_back_button()
     )
     await callback.answer()
@@ -120,7 +121,7 @@ async def show_why_crypto(callback: CallbackQuery):
 async def show_why_crypto_msg(message: Message):
     """Почему крипто через кнопку"""
     await message.answer(
-        messages.WHY_CRYPTO,
+        get_text("WHY_CRYPTO", messages.WHY_CRYPTO),
         reply_markup=get_back_button()
     )
 
@@ -128,7 +129,7 @@ async def show_why_crypto_msg(message: Message):
 async def show_success_stories(callback: CallbackQuery):
     """Истории успеха"""
     await callback.message.edit_text(
-        messages.SUCCESS_STORIES,
+        get_text("SUCCESS_STORIES", messages.SUCCESS_STORIES),
         reply_markup=get_back_button()
     )
     await callback.answer()
@@ -137,7 +138,7 @@ async def show_success_stories(callback: CallbackQuery):
 async def show_success_stories_msg(message: Message):
     """Истории успеха через кнопку"""
     await message.answer(
-        messages.SUCCESS_STORIES,
+        get_text("SUCCESS_STORIES", messages.SUCCESS_STORIES),
         reply_markup=get_back_button()
     )
 
@@ -145,7 +146,7 @@ async def show_success_stories_msg(message: Message):
 async def show_about_course(callback: CallbackQuery):
     """О курсе"""
     await callback.message.edit_text(
-        messages.ABOUT_COURSE,
+        get_text("ABOUT_COURSE", messages.ABOUT_COURSE),
         reply_markup=get_back_button()
     )
     await callback.answer()
@@ -154,7 +155,7 @@ async def show_about_course(callback: CallbackQuery):
 async def show_about_course_msg(message: Message):
     """О курсе через кнопку"""
     await message.answer(
-        messages.ABOUT_COURSE,
+        get_text("ABOUT_COURSE", messages.ABOUT_COURSE),
         reply_markup=get_back_button()
     )
 
