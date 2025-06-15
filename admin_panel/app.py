@@ -642,10 +642,11 @@ def export_users():
         as_attachment=True,
         download_name=f'users_{get_local_time().strftime("%Y%m%d_%H%M%S")}.xlsx'
     )
+
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required
 def delete_user(user_id):
-    """Удаление пользователя"""
+    """Полное каскадное удаление пользователя"""
     conn = get_db_connection()
     cur = conn.cursor()
     
@@ -657,38 +658,73 @@ def delete_user(user_id):
         if not user:
             return jsonify({'status': 'error', 'message': 'Пользователь не найден'}), 404
         
-        # Удаляем связанные записи в правильном порядке
-        # 1. Удаляем действия пользователя
+        username = user.get('username', f'ID: {user_id}')
+        
+        # Удаляем в правильном порядке с учетом всех зависимостей
+        # 1. Сначала удаляем логи интеграций для заявок этого пользователя
+        cur.execute("""
+            DELETE FROM integration_logs 
+            WHERE application_id IN (
+                SELECT id FROM applications WHERE user_id = %s
+            )
+        """, (user_id,))
+        
+        # 2. Удаляем комментарии к заявкам
+        cur.execute("""
+            DELETE FROM application_comments 
+            WHERE application_id IN (
+                SELECT id FROM applications WHERE user_id = %s
+            )
+        """, (user_id,))
+        
+        # 3. Удаляем user_actions
         cur.execute("DELETE FROM user_actions WHERE user_id = %s", (user_id,))
         
-        # 2. Удаляем рефералов
-        cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
-        
-        # 3. Удаляем события трекинга
+        # 4. Удаляем tracking_events
         cur.execute("DELETE FROM tracking_events WHERE user_id = %s", (user_id,))
         
-        # 4. Удаляем заявки пользователя
+        # 5. Удаляем user_clicks и user_click_ids
+        cur.execute("DELETE FROM user_clicks WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM user_click_ids WHERE user_id = %s", (user_id,))
+        
+        # 6. Удаляем broadcast_recipients
+        cur.execute("DELETE FROM broadcast_recipients WHERE user_id = %s", (user_id,))
+        
+        # 7. Удаляем operator_messages
+        cur.execute("DELETE FROM operator_messages WHERE user_id = %s", (user_id,))
+        
+        # 8. Удаляем conversion_logs
+        cur.execute("DELETE FROM conversion_logs WHERE user_id = %s", (user_id,))
+        
+        # 9. Удаляем inline_states
+        cur.execute("DELETE FROM inline_states WHERE user_id = %s", (user_id,))
+        
+        # 10. Удаляем referrals
+        cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
+        
+        # 11. Обновляем applications - убираем referrer_id
+        cur.execute("UPDATE applications SET referrer_id = NULL WHERE referrer_id = %s", (user_id,))
+        
+        # 12. Теперь можем удалить заявки
         cur.execute("DELETE FROM applications WHERE user_id = %s", (user_id,))
         
-        # 5. Удаляем самого пользователя
+        # 13. Наконец удаляем самого пользователя
         cur.execute("DELETE FROM bot_users WHERE user_id = %s", (user_id,))
         
         conn.commit()
         
-        username = user['username'] or str(user_id)
         return jsonify({
-            'status': 'success', 
-            'message': f'Пользователь {username} полностью удален вместе со всеми данными'
+            'status': 'success',
+            'message': f'Пользователь {username} и все связанные данные удалены'
         })
         
     except Exception as e:
         conn.rollback()
-        logger.error(f"Error deleting user {user_id}: {str(e)}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        print(f"DELETE_USER ERROR: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'Ошибка при удалении: {str(e)}'}), 500
     finally:
         cur.close()
         conn.close()
-
 @app.route('/editor')
 @login_required
 def text_editor():
