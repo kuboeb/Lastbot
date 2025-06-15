@@ -1099,6 +1099,224 @@ def force_delete_traffic_source(source_id):
 
 
 
+
+# ===== РАССЫЛКИ =====
+
+@app.route('/broadcast')
+@login_required
+def broadcast():
+    """Страница управления рассылками"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем статистику пользователей
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total_users,
+                COUNT(CASE WHEN has_application = TRUE THEN 1 END) as with_application,
+                COUNT(CASE WHEN has_application = FALSE THEN 1 END) as without_application,
+                COUNT(CASE WHEN last_activity > CURRENT_TIMESTAMP - INTERVAL '7 days' THEN 1 END) as active_week,
+                COUNT(CASE WHEN last_activity > CURRENT_TIMESTAMP - INTERVAL '30 days' THEN 1 END) as active_month
+            FROM bot_users
+            WHERE is_blocked = FALSE
+        """)
+        stats = cur.fetchone()
+        
+        # Получаем историю рассылок
+        cur.execute("""
+            SELECT * FROM broadcasts 
+            ORDER BY created_at DESC 
+            LIMIT 20
+        """)
+        broadcasts = cur.fetchall()
+        
+        return render_template('broadcast.html', stats=stats, broadcasts=broadcasts)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/broadcast/create', methods=['GET', 'POST'])
+@login_required
+def create_broadcast():
+    """Создание новой рассылки"""
+    if request.method == 'POST':
+        data = request.get_json()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        try:
+            # Получаем список получателей по фильтрам
+            filters = data.get('filters', {})
+            query = """
+                SELECT user_id, username 
+                FROM bot_users 
+                WHERE is_blocked = FALSE
+            """
+            params = []
+            
+            if filters.get('has_application') == 'no':
+                query += " AND has_application = FALSE"
+            elif filters.get('has_application') == 'yes':
+                query += " AND has_application = TRUE"
+            
+            if filters.get('activity'):
+                if filters['activity'] == 'week':
+                    query += " AND last_activity > CURRENT_TIMESTAMP - INTERVAL '7 days'"
+                elif filters['activity'] == 'month':
+                    query += " AND last_activity > CURRENT_TIMESTAMP - INTERVAL '30 days'"
+                elif filters['activity'] == 'inactive':
+                    query += " AND last_activity < CURRENT_TIMESTAMP - INTERVAL '30 days'"
+            
+            if filters.get('registration_from'):
+                query += " AND first_seen >= %s"
+                params.append(filters['registration_from'])
+            
+            if filters.get('registration_to'):
+                query += " AND first_seen <= %s"
+                params.append(filters['registration_to'])
+            
+            cur.execute(query, params)
+            recipients = cur.fetchall()
+            
+            # Создаем рассылку
+            cur.execute("""
+                INSERT INTO broadcasts (name, message, target_audience, recipient_count, status)
+                VALUES (%s, %s, %s, %s, 'pending')
+                RETURNING id
+            """, (
+                data['name'],
+                data['message'],
+                json.dumps(filters),
+                len(recipients)
+            ))
+            
+            broadcast_id = cur.fetchone()['id']
+            
+            # Сохраняем получателей
+            for recipient in recipients:
+                cur.execute("""
+                    INSERT INTO broadcast_recipients (broadcast_id, user_id, status)
+                    VALUES (%s, %s, 'pending')
+                """, (broadcast_id, recipient['user_id']))
+            
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'broadcast_id': broadcast_id,
+                'recipient_count': len(recipients)
+            })
+            
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            cur.close()
+            conn.close()
+    
+    return render_template('create_broadcast.html')
+
+@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
+@login_required
+def send_broadcast(broadcast_id):
+    """Запуск рассылки"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем данные рассылки
+        cur.execute("SELECT * FROM broadcasts WHERE id = %s", (broadcast_id,))
+        broadcast = cur.fetchone()
+        
+        if not broadcast:
+            return jsonify({'success': False, 'error': 'Рассылка не найдена'})
+        
+        # Отправляем задачу в очередь (используем API бота)
+        import requests
+        
+        response = requests.post(
+            f"http://localhost:{os.getenv('BOT_API_PORT', 8002)}/api/send_broadcast",
+            json={
+                'broadcast_id': broadcast_id,
+                'api_key': os.getenv('INTERNAL_API_KEY')
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            # Обновляем статус
+            cur.execute("""
+                UPDATE broadcasts 
+                SET status = 'sending', started_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (broadcast_id,))
+            conn.commit()
+            
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Ошибка отправки'})
+            
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/broadcast/<int:broadcast_id>/stats')
+@login_required
+def broadcast_stats(broadcast_id):
+    """Статистика рассылки"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем данные рассылки
+        cur.execute("SELECT * FROM broadcasts WHERE id = %s", (broadcast_id,))
+        broadcast = cur.fetchone()
+        
+        # Получаем статистику по получателям
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+                COUNT(CASE WHEN status = 'delivered' THEN 1 END) as delivered,
+                COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
+                COUNT(CASE WHEN converted = TRUE THEN 1 END) as converted
+            FROM broadcast_recipients
+            WHERE broadcast_id = %s
+        """, (broadcast_id,))
+        stats = cur.fetchone()
+        
+        # Получаем ошибки
+        cur.execute("""
+            SELECT br.*, bu.username
+            FROM broadcast_recipients br
+            LEFT JOIN bot_users bu ON br.user_id = bu.user_id
+            WHERE br.broadcast_id = %s AND br.status = 'error'
+            LIMIT 100
+        """, (broadcast_id,))
+        errors = cur.fetchall()
+        
+        return render_template('broadcast_stats.html', 
+                             broadcast=broadcast, 
+                             stats=stats,
+                             errors=errors)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('broadcast'))
+    finally:
+        cur.close()
+        conn.close()
+
+
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)

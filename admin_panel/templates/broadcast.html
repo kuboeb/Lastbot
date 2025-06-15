@@ -1,11 +1,155 @@
 {% extends "base.html" %}
-{% block title %}Рассылка{% endblock %}
+
+{% block title %}Рассылки{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <h1 class="h3 mb-4">Рассылка</h1>
-    <div class="alert alert-info">
-        Эта страница в разработке. Здесь будет функционал рассылки сообщений.
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Управление рассылками</h1>
+        <a href="{{ url_for('create_broadcast') }}" class="btn btn-success">
+            <i class="bi bi-plus-circle"></i> Создать рассылку
+        </a>
     </div>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Вернуться на дашборд</a>
+    
+    <!-- Статистика пользователей -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Всего</h5>
+                    <h2 class="text-primary">{{ stats.total_users }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">С заявкой</h5>
+                    <h2 class="text-success">{{ stats.with_application }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Без заявки</h5>
+                    <h2 class="text-warning">{{ stats.without_application }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Активны (7 дней)</h5>
+                    <h2 class="text-info">{{ stats.active_week }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Активны (30 дней)</h5>
+                    <h2 class="text-secondary">{{ stats.active_month }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- История рассылок -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">История рассылок</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Получателей</th>
+                            <th>Статус</th>
+                            <th>Отправлено</th>
+                            <th>Доставлено</th>
+                            <th>Конверсия</th>
+                            <th>Дата</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for broadcast in broadcasts %}
+                        <tr>
+                            <td>{{ broadcast.id }}</td>
+                            <td>{{ broadcast.name }}</td>
+                            <td>{{ broadcast.recipient_count }}</td>
+                            <td>
+                                {% if broadcast.status == 'draft' %}
+                                    <span class="badge bg-secondary">Черновик</span>
+                                {% elif broadcast.status == 'pending' %}
+                                    <span class="badge bg-warning">Ожидает</span>
+                                {% elif broadcast.status == 'sending' %}
+                                    <span class="badge bg-info">Отправляется</span>
+                                {% elif broadcast.status == 'sent' %}
+                                    <span class="badge bg-success">Отправлено</span>
+                                {% else %}
+                                    <span class="badge bg-danger">{{ broadcast.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ broadcast.sent_count or 0 }}</td>
+                            <td>{{ broadcast.delivered_count or 0 }}</td>
+                            <td>
+                                {% if broadcast.delivered_count and broadcast.delivered_count > 0 %}
+                                    {{ "%.1f"|format(broadcast.converted_count / broadcast.delivered_count * 100) }}%
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ broadcast.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+                            <td>
+                                <a href="{{ url_for('broadcast_stats', broadcast_id=broadcast.id) }}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="bi bi-bar-chart"></i>
+                                </a>
+                                {% if broadcast.status == 'pending' %}
+                                <button class="btn btn-sm btn-success" 
+                                        onclick="sendBroadcast({{ broadcast.id }})">
+                                    <i class="bi bi-send"></i>
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
+<script>
+async function sendBroadcast(broadcastId) {
+    if (!confirm('Начать рассылку?')) return;
+    
+    try {
+        const response = await fetch(`/broadcast/${broadcastId}/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Рассылка запущена!');
+            location.reload();
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка запуска рассылки');
+    }
+}
+</script>
 {% endblock %}

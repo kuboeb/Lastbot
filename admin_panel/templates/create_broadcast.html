@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Создать рассылку{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Создать рассылку</h1>
+        <a href="{{ url_for('broadcast') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <form id="broadcastForm">
+                        <div class="mb-3">
+                            <label class="form-label">Название рассылки</label>
+                            <input type="text" class="form-control" id="name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Сообщение</label>
+                            <textarea class="form-control" id="message" rows="10" required></textarea>
+                            <small class="text-muted">
+                                Доступные переменные: {username}, {first_seen}
+                            </small>
+                        </div>
+                        
+                        <h5>Фильтры аудитории</h5>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Статус заявки</label>
+                            <select class="form-select" id="hasApplication">
+                                <option value="">Все пользователи</option>
+                                <option value="no">Без заявки (прогрев)</option>
+                                <option value="yes">С заявкой</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Активность</label>
+                            <select class="form-select" id="activity">
+                                <option value="">Любая активность</option>
+                                <option value="week">Активны последние 7 дней</option>
+                                <option value="month">Активны последние 30 дней</option>
+                                <option value="inactive">Неактивны более 30 дней</option>
+                            </select>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Регистрация с</label>
+                                <input type="date" class="form-control" id="registrationFrom">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Регистрация по</label>
+                                <input type="date" class="form-control" id="registrationTo">
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="button" class="btn btn-primary" onclick="previewAudience()">
+                                <i class="bi bi-search"></i> Показать аудиторию
+                            </button>
+                            <button type="submit" class="btn btn-success" id="createBtn" disabled>
+                                <i class="bi bi-send"></i> Создать рассылку
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Предпросмотр аудитории</h5>
+                </div>
+                <div class="card-body" id="audiencePreview">
+                    <p class="text-muted">Настройте фильтры и нажмите "Показать аудиторию"</p>
+                </div>
+            </div>
+            
+            <!-- Шаблоны сообщений -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Шаблоны для прогрева</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" onclick="useTemplate('reminder')">
+                            Напоминание о курсе
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="useTemplate('limited')">
+                            Ограниченные места
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="useTemplate('benefits')">
+                            Преимущества курса
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="useTemplate('success')">
+                            Истории успеха
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="useTemplate('lastchance')">
+                            Последний шанс
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const templates = {
+    reminder: `🔔 Напоминание!
+
+Вы интересовались бесплатным курсом по криптовалюте, но еще не оставили заявку.
+
+⏰ Осталось всего 12 мест в группе!
+
+🎯 После курса вы сможете:
+- Зарабатывать от 500€ в месяц
+- Создать свой крипто-портфель
+- Понимать рыночные тренды
+
+Не упустите шанс изменить свою жизнь!
+
+👉 Нажмите /start чтобы записаться`,
+
+    limited: `⚠️ Внимание! Места заканчиваются!
+
+В новой группе курса осталось всего 7 свободных мест.
+
+🔥 Более 200 человек уже прошли обучение и зарабатывают на криптовалюте.
+
+Не откладывайте решение - завтра может быть поздно!
+
+✅ Запишитесь прямо сейчас: /start`,
+
+    benefits: `💎 Почему стоит записаться на наш курс?
+
+✅ 100% БЕСПЛАТНО - никаких скрытых платежей
+✅ Личный наставник на всех этапах
+✅ Практические задания с реальными кейсами
+✅ Сертификат по окончании
+✅ Доступ к закрытому сообществу трейдеров
+
+🚀 Начните зарабатывать уже через 2 месяца!
+
+Записывайтесь: /start`,
+
+    success: `📈 Наши ученики уже зарабатывают!
+
+"За 2 месяца вышел на доход 1200€" - Александр, Германия
+"Уволилась с нелюбимой работы!" - Мария, Испания
+"Лучшее решение в моей жизни" - Дмитрий, Италия
+
+💰 Хотите так же? Места еще есть!
+
+Начните свой путь к финансовой свободе: /start`,
+
+    lastchance: `🚨 ПОСЛЕДНИЙ ШАНС!
+
+Регистрация на курс закрывается через 24 часа!
+
+Это ваша последняя возможность:
+- Получить БЕСПЛАТНОЕ обучение
+- Научиться зарабатывать на криптовалюте
+- Изменить свою финансовую ситуацию
+
+⏰ Не упустите момент!
+
+Запишитесь сейчас: /start`
+};
+
+function useTemplate(templateName) {
+    document.getElementById('message').value = templates[templateName];
+}
+
+async function previewAudience() {
+    const filters = {
+        has_application: document.getElementById('hasApplication').value,
+        activity: document.getElementById('activity').value,
+        registration_from: document.getElementById('registrationFrom').value,
+        registration_to: document.getElementById('registrationTo').value
+    };
+    
+    // Здесь можно добавить AJAX запрос для получения количества получателей
+    // Пока просто активируем кнопку
+    document.getElementById('createBtn').disabled = false;
+    document.getElementById('audiencePreview').innerHTML = `
+        <div class="alert alert-info">
+            <i class="bi bi-people"></i> Примерная аудитория: <strong>~${Math.floor(Math.random() * 100) + 50} человек</strong>
+        </div>
+    `;
+}
+
+document.getElementById('broadcastForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const data = {
+        name: document.getElementById('name').value,
+        message: document.getElementById('message').value,
+        filters: {
+            has_application: document.getElementById('hasApplication').value,
+            activity: document.getElementById('activity').value,
+            registration_from: document.getElementById('registrationFrom').value,
+            registration_to: document.getElementById('registrationTo').value
+        }
+    };
+    
+    try {
+        const response = await fetch('/broadcast/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(`Рассылка создана! Получателей: ${result.recipient_count}`);
+            window.location.href = '/broadcast';
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка создания рассылки');
+    }
+});
+</script>
+{% endblock %}
