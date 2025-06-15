@@ -151,7 +151,7 @@ def dashboard():
         chart_labels=chart_labels,
         chart_data=chart_data,
         bot_status={'enabled': True, 'uptime': '2д 14ч 35м'},
-        funnel_stats={'started': 0, 'entered_name': 0, 'entered_country': 0, 'entered_phone': 0, 'entered_time': 0, 'completed': 0}
+        funnel_stats={'start': 0, 'begin_registration': 0, 'entered_country': 0, 'entered_phone': 0, 'entered_time': 0, 'complete_registration': 0}
     )
 
 @app.route('/applications')
