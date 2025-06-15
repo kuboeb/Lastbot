@@ -1448,12 +1448,70 @@ def debug_session():
 def integrations():
     """Страница управления интеграциями"""
     print("DEBUG: Entering integrations function")
+    
+    # Импортируем нужные модули здесь
+    from flask import render_template, flash, redirect, url_for
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
     try:
-        # Простой тест - вернем строку
-        return "<h1>Integrations Page Works!</h1><p>User is authenticated</p>"
+        print("DEBUG: Executing SQL query")
+        cur.execute("""
+            SELECT id, name, type, settings, is_active, created_at
+            FROM integrations
+            ORDER BY created_at DESC
+        """)
+        
+        integrations_list = []
+        for row in cur.fetchall():
+            integration = {
+                'id': row[0],
+                'name': row[1],
+                'type': row[2],
+                'settings': row[3],
+                'is_active': row[4],
+                'created_at': row[5]
+            }
+            
+            # Скрываем API ключ
+            if integration['settings'] and 'api_key' in integration['settings']:
+                integration['settings']['api_key'] = integration['settings']['api_key'][:10] + '...'
+            
+            # Статистика
+            cur.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN status = 'success' THEN 1 END) as success,
+                    COUNT(CASE WHEN status = 'error' THEN 1 END) as error,
+                    MAX(created_at) as last_send
+                FROM integration_logs
+                WHERE integration_id = %s
+            """, (integration['id'],))
+            
+            stats = cur.fetchone()
+            integration['stats'] = {
+                'total': stats[0] if stats else 0,
+                'success': stats[1] if stats else 0,
+                'error': stats[2] if stats else 0,
+                'last_send': stats[3] if stats else None
+            }
+            
+            integrations_list.append(integration)
+        
+        print(f"DEBUG: Found {len(integrations_list)} integrations")
+        
+        cur.close()
+        conn.close()
+        
+        return render_template('integrations.html', integrations=integrations_list)
+        
     except Exception as e:
         print(f"ERROR in integrations: {e}")
-        return f"Error: {e}"
+        cur.close()
+        conn.close()
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/integrations/create', methods=['GET', 'POST'])
