@@ -8,6 +8,7 @@ from aiogram.fsm.context import FSMContext
 from sqlalchemy import select, func
 import re
 import logging
+from datetime import datetime
 
 from database import db_manager, BotUser, Application, TrafficSource, UserAction, Referral
 from keyboards.keyboards import (
@@ -17,6 +18,7 @@ from keyboards.keyboards import (
     get_reply_keyboard_existing_user
 )
 from utils import messages
+from utils.datetime_utils import normalize_datetime, get_current_datetime
 
 router = Router(name="start")
 logger = logging.getLogger(__name__)
@@ -25,7 +27,8 @@ async def save_user_action(session, user_id: int, action: str):
     """Сохраняет действие пользователя"""
     user_action = UserAction(
         user_id=user_id,
-        action=action
+        action=action,
+        created_at=get_current_datetime()
     )
     session.add(user_action)
 
@@ -67,12 +70,14 @@ async def cmd_start(message: Message, state: FSMContext):
         result = await session.execute(select(BotUser).where(BotUser.user_id == user_id))
         user = result.scalar_one_or_none()
         
+        current_time = get_current_datetime()
+        
         if not user:
             user = BotUser(
                 user_id=user_id,
                 username=username,
-                first_seen=message.date.replace(tzinfo=None) if message.date else None,
-                last_activity=message.date.replace(tzinfo=None) if message.date else None
+                first_seen=current_time,
+                last_activity=current_time
             )
             
             # Если есть источник трафика, находим его
@@ -91,13 +96,13 @@ async def cmd_start(message: Message, state: FSMContext):
                 referral = Referral(
                     referrer_id=referrer_id,
                     referred_id=user_id,
-                    created_at=message.date.replace(tzinfo=None) if message.date else None
+                    created_at=current_time
                 )
                 session.add(referral)
             
             await session.commit()
         else:
-            user.last_activity = message.date
+            user.last_activity = current_time
             await session.commit()
         
         # Проверяем, есть ли заявка

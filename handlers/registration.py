@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy import select
 import re
+from datetime import datetime
 
 from database import db_manager, Application, BotUser, Referral, UserAction
 from keyboards.keyboards import (
@@ -16,6 +17,7 @@ from keyboards.keyboards import (
     get_main_menu_existing_user
 )
 from utils import messages
+from utils.datetime_utils import get_current_datetime
 from config import config
 
 router = Router(name="registration")
@@ -31,7 +33,8 @@ async def save_user_action(session, user_id: int, action: str):
     """Сохраняет действие пользователя"""
     user_action = UserAction(
         user_id=user_id,
-        action=action
+        action=action,
+        created_at=get_current_datetime()
     )
     session.add(user_action)
 
@@ -210,7 +213,8 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
             phone=data['phone'],
             preferred_time=data['preferred_time'],
             referrer_id=referral.referrer_id if referral else None,
-            source_id=user.source_id if user else None
+            source_id=user.source_id if user else None,
+            created_at=get_current_datetime()
         )
         
         session.add(application)
@@ -229,7 +233,7 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         country=data['country'],
         phone=data['phone'],
         time=data['preferred_time'],
-        date=callback.message.date.strftime('%d.%m.%Y %H:%M'),
+        date=get_current_datetime().strftime('%d.%m.%Y %H:%M'),
         username=f"@{callback.from_user.username}" if callback.from_user.username else "Не указан",
         invited="Да" if referral else "Нет"
     )
