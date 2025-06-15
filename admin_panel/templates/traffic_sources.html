@@ -1,11 +1,480 @@
 {% extends "base.html" %}
+
 {% block title %}Источники трафика{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <h1 class="h3 mb-4">Источники трафика</h1>
-    <div class="alert alert-info">
-        Эта страница в разработке. Здесь будет управление источниками трафика.
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Источники трафика</h1>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createSourceModal">
+            <i class="bi bi-plus-circle"></i> Создать источник
+        </button>
     </div>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-primary">Вернуться на дашборд</a>
+    
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Всего источников</h5>
+                    <h2 class="text-primary">{{ sources|length }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Активных</h5>
+                    <h2 class="text-success">{{ sources|selectattr('is_active')|list|length }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Всего кликов</h5>
+                    <h2 class="text-info">{{ sources|sum(attribute='clicks') }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Всего лидов</h5>
+                    <h2 class="text-warning">{{ sources|sum(attribute='leads') }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Таблица источников -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Платформа</th>
+                            <th>Ссылка</th>
+                            <th>Клики</th>
+                            <th>Старты</th>
+                            <th>Лиды</th>
+                            <th>CR%</th>
+                            <th>Click ID</th>
+                            <th>Статус</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for source in sources %}
+                        <tr>
+                            <td>{{ source.id }}</td>
+                            <td>{{ source.name }}</td>
+                            <td>
+                                <span class="badge bg-{{ source.platform_color }}">
+                                    {{ source.platform_name }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <input type="text" class="form-control form-control-sm me-2" 
+                                           value="{{ source.link }}" readonly style="max-width: 300px;">
+                                    <button class="btn btn-sm btn-outline-secondary copy-btn" 
+                                            data-link="{{ source.link }}">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </td>
+                            <td>{{ source.clicks }}</td>
+                            <td>{{ source.starts }}</td>
+                            <td>{{ source.leads }}</td>
+                            <td>
+                                {% if source.cr > 0 %}
+                                    <span class="badge bg-success">{{ source.cr }}%</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if source.users_with_clickid > 0 %}
+                                    <span class="badge bg-info">{{ source.users_with_clickid }}</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if source.is_active %}
+                                    <span class="badge bg-success">Активен</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Выключен</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('traffic_source_details', source_id=source.id) }}" 
+                                   class="btn btn-sm btn-info" title="Подробнее">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button class="btn btn-sm btn-warning test-conversion" 
+                                        data-source-id="{{ source.id }}" title="Тест конверсии">
+                                    <i class="bi bi-bug"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary toggle-source" 
+                                        data-source-id="{{ source.id }}" 
+                                        title="{% if source.is_active %}Выключить{% else %}Включить{% endif %}">
+                                    <i class="bi bi-toggle-{% if source.is_active %}on{% else %}off{% endif %}"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Модальное окно создания источника -->
+<div class="modal fade" id="createSourceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Создать источник трафика</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Шаг 1: Основная информация -->
+                <div id="step1" class="step">
+                    <h6>Основная информация</h6>
+                    <div class="mb-3">
+                        <label class="form-label">Название источника</label>
+                        <input type="text" class="form-control" id="sourceName" 
+                               placeholder="Например: Иван - Facebook - Испания">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Платформа</label>
+                        <div class="row g-2">
+                            {% for key, platform in platforms.items() %}
+                            <div class="col-md-4">
+                                <div class="platform-card" data-platform="{{ key }}">
+                                    <div class="badge bg-{{ platform.color }} w-100 p-3">
+                                        {{ platform.name }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="nextStep">Далее</button>
+                </div>
+                
+                <!-- Шаг 2: Настройки платформы -->
+                <div id="step2" class="step" style="display: none;">
+                    <h6>Настройки платформы</h6>
+                    <div id="platformSettings"></div>
+                    <button class="btn btn-secondary" id="prevStep">Назад</button>
+                    <button class="btn btn-success" id="createSource">Создать источник</button>
+                </div>
+                
+                <!-- Шаг 3: Результат -->
+                <div id="step3" class="step" style="display: none;">
+                    <div class="alert alert-success">
+                        <h6>Источник создан!</h6>
+                        <p>Ваша ссылка для рекламы:</p>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" id="generatedLink" readonly>
+                            <button class="btn btn-success copy-result-btn" type="button">
+                                <i class="bi bi-clipboard"></i> Копировать
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6>Инструкция для баера:</h6>
+                        <ol id="buyerInstructions"></ol>
+                    </div>
+                    
+                    <button class="btn btn-primary" data-bs-dismiss="modal">Готово</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Конфигурация платформ
+const platformConfigs = {
+    facebook: {
+        fields: [
+            {name: 'pixel_id', label: 'Pixel ID', type: 'text', required: true},
+            {name: 'access_token', label: 'Access Token', type: 'textarea', required: true}
+        ],
+        instructions: [
+            'Используйте эту ссылку в Facebook Ads',
+            'Убедитесь, что включена передача fbclid',
+            'Конверсии будут отправляться автоматически'
+        ]
+    },
+    google: {
+        fields: [
+            {name: 'conversion_id', label: 'Conversion ID', type: 'text', required: true},
+            {name: 'conversion_label', label: 'Conversion Label', type: 'text', required: true}
+        ],
+        instructions: [
+            'Добавьте ссылку в Google Ads',
+            'Включите автотегирование для gclid',
+            'Конверсии отправляются при получении заявки'
+        ]
+    },
+    tiktok: {
+        fields: [
+            {name: 'pixel_id', label: 'Pixel ID', type: 'text', required: true},
+            {name: 'access_token', label: 'Access Token', type: 'text', required: true}
+        ],
+        instructions: [
+            'Используйте ссылку в TikTok Ads',
+            'Включите передачу ttclid',
+            'События отправляются автоматически'
+        ]
+    },
+    telegram_ads: {
+        fields: [],
+        instructions: [
+            'Используйте ссылку в Telegram Ads',
+            'Дополнительных настроек не требуется'
+        ]
+    },
+    onclick: {
+        fields: [
+            {name: 'postback_url', label: 'Postback URL', type: 'text', required: true}
+        ],
+        instructions: [
+            'Добавьте &clickid={clickid} к ссылке',
+            'Postback отправится при конверсии'
+        ]
+    },
+    richads: {
+        fields: [
+            {name: 'postback_url', label: 'Postback URL', type: 'text', required: true}
+        ],
+        instructions: [
+            'Используйте макрос {click_id}',
+            'S2S postback при конверсии'
+        ]
+    },
+    pushhouse: {
+        fields: [
+            {name: 'postback_url', label: 'Postback URL', type: 'text', required: true}
+        ],
+        instructions: [
+            'Добавьте &clickid={clickid}',
+            'Автоматическая отправка конверсий'
+        ]
+    },
+    evadav: {
+        fields: [
+            {name: 'postback_url', label: 'Postback URL', type: 'text', required: true}
+        ],
+        instructions: [
+            'Используйте subid={subid}',
+            'Postback при получении лида'
+        ]
+    },
+    propeller: {
+        fields: [
+            {name: 'postback_url', label: 'Postback URL', type: 'text', required: true}
+        ],
+        instructions: [
+            'Добавьте clickid=${SUBID}',
+            'S2S conversion автоматически'
+        ]
+    }
+};
+
+let selectedPlatform = null;
+
+// Выбор платформы
+document.querySelectorAll('.platform-card').forEach(card => {
+    card.addEventListener('click', function() {
+        document.querySelectorAll('.platform-card').forEach(c => c.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedPlatform = this.dataset.platform;
+    });
+});
+
+// Навигация по шагам
+document.getElementById('nextStep').addEventListener('click', function() {
+    if (!document.getElementById('sourceName').value) {
+        alert('Введите название источника');
+        return;
+    }
+    if (!selectedPlatform) {
+        alert('Выберите платформу');
+        return;
+    }
+    
+    // Генерируем поля для платформы
+    const config = platformConfigs[selectedPlatform];
+    let fieldsHtml = '';
+    
+    config.fields.forEach(field => {
+        fieldsHtml += `
+            <div class="mb-3">
+                <label class="form-label">${field.label}</label>
+                ${field.type === 'textarea' ? 
+                    `<textarea class="form-control" id="${field.name}" ${field.required ? 'required' : ''}></textarea>` :
+                    `<input type="${field.type}" class="form-control" id="${field.name}" ${field.required ? 'required' : ''}>`
+                }
+            </div>
+        `;
+    });
+    
+    document.getElementById('platformSettings').innerHTML = fieldsHtml || '<p>Дополнительные настройки не требуются</p>';
+    
+    document.getElementById('step1').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+});
+
+document.getElementById('prevStep').addEventListener('click', function() {
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('step1').style.display = 'block';
+});
+
+// Создание источника
+document.getElementById('createSource').addEventListener('click', async function() {
+    const settings = {};
+    const config = platformConfigs[selectedPlatform];
+    
+    // Собираем настройки
+    for (const field of config.fields) {
+        const value = document.getElementById(field.name).value;
+        if (field.required && !value) {
+            alert(`Заполните поле ${field.label}`);
+            return;
+        }
+        settings[field.name] = value;
+    }
+    
+    const data = {
+        name: document.getElementById('sourceName').value,
+        platform: selectedPlatform,
+        settings: settings
+    };
+    
+    try {
+        const response = await fetch('/traffic-sources/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('generatedLink').value = result.link;
+            
+            // Генерируем инструкции
+            let instructionsHtml = '';
+            config.instructions.forEach(instruction => {
+                instructionsHtml += `<li>${instruction}</li>`;
+            });
+            document.getElementById('buyerInstructions').innerHTML = instructionsHtml;
+            
+            document.getElementById('step2').style.display = 'none';
+            document.getElementById('step3').style.display = 'block';
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка создания источника');
+    }
+});
+
+// Копирование ссылок
+document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const link = this.dataset.link;
+        navigator.clipboard.writeText(link);
+        
+        const icon = this.querySelector('i');
+        icon.classList.remove('bi-clipboard');
+        icon.classList.add('bi-check');
+        setTimeout(() => {
+            icon.classList.remove('bi-check');
+            icon.classList.add('bi-clipboard');
+        }, 2000);
+    });
+});
+
+// Копирование результата
+document.querySelector('.copy-result-btn').addEventListener('click', function() {
+    const link = document.getElementById('generatedLink').value;
+    navigator.clipboard.writeText(link);
+    
+    const icon = this.querySelector('i');
+    icon.classList.remove('bi-clipboard');
+    icon.classList.add('bi-check');
+    setTimeout(() => {
+        icon.classList.remove('bi-check');
+        icon.classList.add('bi-clipboard');
+    }, 2000);
+});
+
+// Тест конверсии
+document.querySelectorAll('.test-conversion').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const sourceId = this.dataset.sourceId;
+        
+        try {
+            const response = await fetch(`/traffic-sources/${sourceId}/test-conversion`, {
+                method: 'POST'
+            });
+            
+            const result = await response.json();
+            alert(result.message || 'Тестовая конверсия отправлена');
+        } catch (error) {
+            alert('Ошибка отправки тестовой конверсии');
+        }
+    });
+});
+
+// Переключение статуса
+document.querySelectorAll('.toggle-source').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const sourceId = this.dataset.sourceId;
+        
+        try {
+            const response = await fetch(`/traffic-sources/${sourceId}/toggle`, {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                location.reload();
+            }
+        } catch (error) {
+            alert('Ошибка изменения статуса');
+        }
+    });
+});
+
+// Стили для выбранной платформы
+const style = document.createElement('style');
+style.textContent = `
+    .platform-card {
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    .platform-card:hover {
+        transform: scale(1.05);
+    }
+    .platform-card.selected {
+        border: 3px solid #0d6efd;
+        border-radius: 5px;
+    }
+`;
+document.head.appendChild(style);
+</script>
 {% endblock %}

@@ -780,6 +780,259 @@ def init_admin():
     cur.close()
     conn.close()
 
+
+# ===== ИСТОЧНИКИ ТРАФИКА =====
+
+@app.route('/traffic-sources')
+@login_required
+def traffic_sources():
+    """Страница управления источниками трафика"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем все источники с статистикой
+        cur.execute("""
+            SELECT 
+                ts.*,
+                COUNT(DISTINCT CASE WHEN te.event_type = 'click' THEN te.user_id END) as clicks,
+                COUNT(DISTINCT CASE WHEN te.event_type = 'start' THEN te.user_id END) as starts,
+                COUNT(DISTINCT CASE WHEN te.event_type = 'lead' THEN te.user_id END) as leads,
+                COUNT(DISTINCT uc.user_id) as users_with_clickid
+            FROM traffic_sources ts
+            LEFT JOIN tracking_events te ON ts.id = te.source_id
+            LEFT JOIN user_click_ids uc ON ts.id = uc.source_id
+            GROUP BY ts.id
+            ORDER BY ts.created_at DESC
+        """)
+        sources = cur.fetchall()
+        
+        # Информация о платформах
+        platforms = {
+            'facebook': {'name': 'Facebook Ads', 'color': 'primary'},
+            'google': {'name': 'Google Ads', 'color': 'success'},
+            'tiktok': {'name': 'TikTok Ads', 'color': 'dark'},
+            'telegram_ads': {'name': 'Telegram Ads', 'color': 'info'},
+            'onclick': {'name': 'OnClick', 'color': 'warning'},
+            'richads': {'name': 'RichAds', 'color': 'danger'},
+            'pushhouse': {'name': 'PushHouse', 'color': 'secondary'},
+            'evadav': {'name': 'EvaDav', 'color': 'success'},
+            'propeller': {'name': 'PropellerAds', 'color': 'primary'}
+        }
+        
+        for source in sources:
+            platform = platforms.get(source['platform'], {'name': source['platform'], 'color': 'secondary'})
+            source['platform_name'] = platform['name']
+            source['platform_color'] = platform['color']
+            
+            # Считаем конверсию
+            if source['clicks'] > 0:
+                source['cr'] = round(source['leads'] / source['clicks'] * 100, 2)
+            else:
+                source['cr'] = 0
+        
+        return render_template('traffic_sources.html', sources=sources, platforms=platforms)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/create', methods=['GET', 'POST'])
+@login_required
+def create_traffic_source():
+    """Создание нового источника трафика"""
+    if request.method == 'POST':
+        data = request.get_json()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        try:
+            # Генерируем уникальный код
+            import random
+            import string
+            platform = data['platform']
+            random_code = ''.join(random.choices(string.digits, k=5))
+            source_code = f"{platform[:2]}_{random_code}"
+            
+            # Генерируем ссылку
+            bot_username = os.getenv('BOT_USERNAME', 'cryplace_bot')
+            link = f"https://t.me/{bot_username}?start=src_{source_code}"
+            
+            # Сохраняем
+            cur.execute("""
+                INSERT INTO traffic_sources (name, platform, source_code, settings, link)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """, (data['name'], platform, source_code, json.dumps(data.get('settings', {})), link))
+            
+            source_id = cur.fetchone()['id']
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'id': source_id,
+                'link': link,
+                'source_code': source_code
+            })
+            
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            cur.close()
+            conn.close()
+    
+    return render_template('create_traffic_source.html')
+
+@app.route('/traffic-sources/<int:source_id>/details')
+@login_required
+def traffic_source_details(source_id):
+    """Детальная информация об источнике"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем источник
+        cur.execute("SELECT * FROM traffic_sources WHERE id = %s", (source_id,))
+        source = cur.fetchone()
+        
+        if not source:
+            flash('Источник не найден', 'danger')
+            return redirect(url_for('traffic_sources'))
+        
+        # Статистика по дням
+        cur.execute("""
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(DISTINCT CASE WHEN event_type = 'click' THEN user_id END) as clicks,
+                COUNT(DISTINCT CASE WHEN event_type = 'start' THEN user_id END) as starts,
+                COUNT(DISTINCT CASE WHEN event_type = 'lead' THEN user_id END) as leads
+            FROM tracking_events
+            WHERE source_id = %s
+            AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(created_at)
+            ORDER BY date DESC
+        """, (source_id,))
+        daily_stats = cur.fetchall()
+        
+        # Последние конверсии
+        cur.execute("""
+            SELECT 
+                cl.*,
+                a.full_name,
+                a.phone,
+                u.username
+            FROM conversion_logs cl
+            LEFT JOIN applications a ON cl.application_id = a.id
+            LEFT JOIN bot_users u ON cl.user_id = u.user_id
+            WHERE cl.source_id = %s
+            ORDER BY cl.created_at DESC
+            LIMIT 50
+        """, (source_id,))
+        conversions = cur.fetchall()
+        
+        # Click IDs
+        cur.execute("""
+            SELECT 
+                uc.*,
+                u.username
+            FROM user_click_ids uc
+            LEFT JOIN bot_users u ON uc.user_id = u.user_id
+            WHERE uc.source_id = %s
+            ORDER BY uc.created_at DESC
+            LIMIT 50
+        """, (source_id,))
+        click_ids = cur.fetchall()
+        
+        return render_template('traffic_source_details.html',
+                             source=source,
+                             daily_stats=daily_stats,
+                             conversions=conversions,
+                             click_ids=click_ids)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('traffic_sources'))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/<int:source_id>/test-conversion', methods=['POST'])
+@login_required
+def test_conversion(source_id):
+    """Тест конверсии"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем источник
+        cur.execute("SELECT * FROM traffic_sources WHERE id = %s", (source_id,))
+        source = cur.fetchone()
+        
+        if not source:
+            return jsonify({'success': False, 'error': 'Источник не найден'})
+        
+        # Создаем тестовую запись
+        cur.execute("""
+            INSERT INTO conversion_logs 
+            (source_id, user_id, platform, request_data, response_data, status)
+            VALUES (%s, 0, %s, %s, %s, 'test')
+        """, (
+            source_id,
+            source['platform'],
+            json.dumps({'test': True, 'timestamp': datetime.now().isoformat()}),
+            json.dumps({'status': 'simulated', 'message': 'Test conversion'})
+        ))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Тестовая конверсия для {source["platform"]} создана'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/<int:source_id>/toggle', methods=['POST'])
+@login_required
+def toggle_traffic_source(source_id):
+    """Включить/выключить источник"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE traffic_sources 
+            SET is_active = NOT is_active 
+            WHERE id = %s
+            RETURNING is_active
+        """, (source_id,))
+        
+        result = cur.fetchone()
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'is_active': result['is_active']
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
