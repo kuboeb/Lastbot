@@ -1029,12 +1029,6 @@ def toggle_traffic_source(source_id):
         conn.close()
 
 
-if __name__ == '__main__':
-    init_admin()
-    app.run(host='0.0.0.0', port=8000, debug=False)
-
-
-
 @app.route('/traffic-sources/<int:source_id>/delete', methods=['POST'])
 @login_required
 def delete_traffic_source(source_id):
@@ -1075,6 +1069,7 @@ def delete_traffic_source(source_id):
         cur.close()
         conn.close()
 
+
 @app.route('/traffic-sources/<int:source_id>/force-delete', methods=['POST'])
 @login_required
 def force_delete_traffic_source(source_id):
@@ -1101,6 +1096,14 @@ def force_delete_traffic_source(source_id):
     finally:
         cur.close()
         conn.close()
+
+
+
+if __name__ == '__main__':
+    init_admin()
+    app.run(host='0.0.0.0', port=8000, debug=False)
+
+
 
 @app.route('/admin/texts/<int:text_id>/update', methods=['POST'])
 @login_required
