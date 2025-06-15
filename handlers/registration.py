@@ -12,9 +12,13 @@ from keyboards.keyboards import (
     get_back_keyboard, 
     get_time_selection_keyboard,
     get_confirmation_keyboard,
-    get_share_referral_keyboard
+    get_share_referral_keyboard,
+    get_reply_keyboard_new_user, 
+    get_main_menu_new_user, 
+    get_reply_keyboard_existing_user
 )
 from utils import messages
+from utils.validators import validate_phone, validate_name, validate_country, format_phone
 from config import config
 
 router = Router()
@@ -69,13 +73,10 @@ async def process_name(message: Message, state: FSMContext):
     """Обработка имени и фамилии"""
     full_name = message.text.strip()
     
-    # Базовая валидация
-    if len(full_name) < 3:
-        await message.answer("Пожалуйста, введите полное имя и фамилию")
-        return
-    
-    if len(full_name.split()) < 2:
-        await message.answer("Пожалуйста, введите и имя, и фамилию")
+    # Валидация
+    is_valid, error_msg = validate_name(full_name)
+    if not is_valid:
+        await message.answer(error_msg)
         return
     
     # Сохраняем в состояние
@@ -107,10 +108,10 @@ async def process_country(message: Message, state: FSMContext):
     """Обработка страны"""
     country = message.text.strip()
     
-    # Проверяем на Украину
-    ukraine_keywords = ["украина", "ukraine", "україна", "ua", "укр"]
-    if any(keyword in country.lower() for keyword in ukraine_keywords):
-        await message.answer(messages.ERROR_UKRAINE_NOT_AVAILABLE)
+    # Валидация
+    is_valid, error_msg = validate_country(country)
+    if not is_valid:
+        await message.answer(error_msg)
         return
     
     # Сохраняем в состояние
@@ -142,16 +143,13 @@ async def process_phone(message: Message, state: FSMContext):
     """Обработка телефона"""
     phone = message.text.strip()
     
-    # Очищаем от лишних символов
-    phone = re.sub(r'[\s\-\(\)]', '', phone)
+    # Форматируем телефон
+    phone = format_phone(phone)
     
-    # Проверяем формат
-    if not phone.startswith('+'):
-        await message.answer(messages.ERROR_INVALID_PHONE)
-        return
-    
-    if not re.match(r'^\+\d{10,15}$', phone):
-        await message.answer("Неверный формат номера. Пример: +34123456789")
+    # Валидация
+    is_valid, error_msg = validate_phone(phone)
+    if not is_valid:
+        await message.answer(error_msg)
         return
     
     # Сохраняем в состояние
@@ -243,6 +241,7 @@ async def confirm_registration(message: Message, state: FSMContext):
         )
         
         # Проверяем реферала
+        from database import Referral
         referral = await session.query(Referral).filter_by(referred_id=user_id).first()
         if referral:
             application.referrer_id = referral.referrer_id
@@ -271,6 +270,13 @@ async def confirm_registration(message: Message, state: FSMContext):
 👥 Приглашен: {'Да' if referral else 'Нет'}"""
         
         await message.bot.send_message(config.ADMIN_ID, admin_message)
+        
+        # Отправляем конверсию если есть источник
+        if user and user.source_id:
+            source = await session.get(TrafficSource, user.source_id)
+            if source:
+                from utils.conversions import ConversionSender
+                await ConversionSender.send_lead_conversion(application, source)
     
     # Отправляем успешное сообщение
     bot_username = (await message.bot.get_me()).username
@@ -288,6 +294,3 @@ async def confirm_registration(message: Message, state: FSMContext):
     
     # Очищаем состояние
     await state.clear()
-
-# Импортируем необходимые функции из keyboards
-from keyboards.keyboards import get_reply_keyboard_new_user, get_main_menu_new_user, get_reply_keyboard_existing_user
