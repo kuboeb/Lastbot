@@ -642,6 +642,7 @@ def export_users():
         as_attachment=True,
         download_name=f'users_{get_local_time().strftime("%Y%m%d_%H%M%S")}.xlsx'
     )
+
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required
 def delete_user(user_id):
