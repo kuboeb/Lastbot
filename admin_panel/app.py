@@ -1426,7 +1426,8 @@ def test():
 @login_required
 def integrations():
     """Страница управления интеграциями"""
-    conn = get_db_connection()
+    print("DEBUG: Entering integrations function")
+        conn = get_db_connection()
     cur = conn.cursor()
     
     try:
