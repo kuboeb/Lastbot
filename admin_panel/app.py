@@ -1429,6 +1429,20 @@ def test_integrations():
     return "Integrations route works!"
 
 
+@app.route('/debug-session')
+def debug_session():
+    """Отладка сессии"""
+    from flask import session
+    return f"""
+    <h1>Debug Session</h1>
+    <p>Authenticated: {current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else 'No current_user'}</p>
+    <p>Session: {dict(session)}</p>
+    <p>Current User: {current_user.id if hasattr(current_user, 'id') and current_user.is_authenticated else 'Not logged in'}</p>
+    <a href="/login">Login</a> | <a href="/integrations">Integrations</a>
+    """
+
+
+
 @app.route('/integrations')
 @login_required
 def integrations():
