@@ -1,235 +1,206 @@
-from sqlalchemy import select
+"""
+Обработчик процесса регистрации на курс
+"""
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from datetime import datetime
+from aiogram.fsm.state import State, StatesGroup
+from sqlalchemy import select
 import re
-import logging
 
-from database import db_manager, BotUser, Application, UserAction, TrafficSource
-from states.registration import RegistrationStates
+from database import db_manager, Application, BotUser, Referral, UserAction
 from keyboards.keyboards import (
-    get_back_keyboard, 
     get_time_selection_keyboard,
     get_confirmation_keyboard,
-    get_share_referral_keyboard,
-    get_reply_keyboard_new_user, 
-    get_main_menu_new_user, 
-    get_reply_keyboard_existing_user
+    get_back_button,
+    get_main_menu_existing_user
 )
 from utils import messages
-from utils.validators import validate_phone, validate_name, validate_country, format_phone
 from config import config
 
-router = Router()
-logger = logging.getLogger(__name__)
+router = Router(name="registration")
+
+class RegistrationStates(StatesGroup):
+    waiting_for_name = State()
+    waiting_for_country = State()
+    waiting_for_phone = State()
+    waiting_for_time = State()
+    confirmation = State()
+
+async def save_user_action(session, user_id: int, action: str):
+    """Сохраняет действие пользователя"""
+    user_action = UserAction(
+        user_id=user_id,
+        action=action
+    )
+    session.add(user_action)
 
 @router.callback_query(F.data == "apply")
-@router.message(Command("apply"))
-async def start_registration(update: Message | CallbackQuery, state: FSMContext):
+async def start_registration_callback(callback: CallbackQuery, state: FSMContext):
+    """Начало регистрации через inline кнопку"""
+    await start_registration(callback.message, state)
+    await callback.answer()
+
+@router.message(F.text == messages.BTN_APPLY)
+async def start_registration_msg(message: Message, state: FSMContext):
+    """Начало регистрации через reply кнопку"""
+    await start_registration(message, state)
+
+async def start_registration(message: Message, state: FSMContext):
     """Начало процесса регистрации"""
-    if isinstance(update, CallbackQuery):
-        message = update.message
-        user_id = update.from_user.id
-        await update.answer()
-    else:
-        message = update
-        user_id = update.from_user.id
+    user_id = message.from_user.id if hasattr(message, 'from_user') else message.chat.id
     
-    # Проверяем, есть ли уже заявка
     async with db_manager.get_session() as session:
-        existing_app = await session.query(Application).filter_by(user_id=user_id).first()
+        # Проверяем, есть ли уже заявка
+        result = await session.execute(
+            select(Application).where(Application.user_id == user_id)
+        )
+        existing_app = result.scalar_one_or_none()
         
         if existing_app:
-            await message.answer(messages.ERROR_ALREADY_REGISTERED)
+            await message.answer(
+                messages.ALREADY_APPLIED,
+                reply_markup=get_back_button()
+            )
             return
         
-        # Логируем начало регистрации
-        action = UserAction(user_id=user_id, action="begin_registration")
-        session.add(action)
+        # Сохраняем действие
+        await save_user_action(session, user_id, 'begin_registration')
+        await session.commit()
     
-    # Запрашиваем имя
-    await message.answer(
-        messages.REGISTRATION_NAME,
-        reply_markup=get_back_keyboard()
-    )
     await state.set_state(RegistrationStates.waiting_for_name)
-
-@router.message(RegistrationStates.waiting_for_name, F.text == messages.BTN_BACK)
-async def back_from_name(message: Message, state: FSMContext):
-    """Возврат из ввода имени"""
-    await state.clear()
-    await message.answer(
-        "Регистрация отменена. Возвращаемся в главное меню.",
-        reply_markup=get_reply_keyboard_new_user()
-    )
-    await message.answer(
-        "Выберите действие:",
-        reply_markup=get_main_menu_new_user()
-    )
+    await message.answer(messages.ASK_NAME)
 
 @router.message(RegistrationStates.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
-    """Обработка имени и фамилии"""
-    full_name = message.text.strip()
+    """Обработка имени"""
+    name = message.text.strip()
     
-    # Валидация
-    is_valid, error_msg = validate_name(full_name)
-    if not is_valid:
-        await message.answer(error_msg)
+    # Проверка имени
+    if len(name) < 2:
+        await message.answer("❌ Имя слишком короткое. Введите полное имя и фамилию:")
         return
     
-    # Сохраняем в состояние
-    await state.update_data(full_name=full_name)
+    if not all(c.isalpha() or c.isspace() for c in name):
+        await message.answer("❌ Имя может содержать только буквы. Попробуйте еще раз:")
+        return
     
-    # Логируем действие
+    await state.update_data(full_name=name)
+    
+    # Сохраняем действие
     async with db_manager.get_session() as session:
-        action = UserAction(user_id=message.from_user.id, action="enter_name")
-        session.add(action)
+        await save_user_action(session, message.from_user.id, 'enter_name')
+        await session.commit()
     
-    # Запрашиваем страну
-    await message.answer(
-        messages.REGISTRATION_COUNTRY,
-        reply_markup=get_back_keyboard()
-    )
     await state.set_state(RegistrationStates.waiting_for_country)
-
-@router.message(RegistrationStates.waiting_for_country, F.text == messages.BTN_BACK)
-async def back_from_country(message: Message, state: FSMContext):
-    """Возврат к вводу имени"""
-    await message.answer(
-        messages.REGISTRATION_NAME,
-        reply_markup=get_back_keyboard()
-    )
-    await state.set_state(RegistrationStates.waiting_for_name)
+    await message.answer(messages.ASK_COUNTRY)
 
 @router.message(RegistrationStates.waiting_for_country)
 async def process_country(message: Message, state: FSMContext):
     """Обработка страны"""
     country = message.text.strip()
     
-    # Валидация
-    is_valid, error_msg = validate_country(country)
-    if not is_valid:
-        await message.answer(error_msg)
+    # Проверка страны
+    if len(country) < 2:
+        await message.answer("❌ Название страны слишком короткое. Введите полное название:")
         return
     
-    # Сохраняем в состояние
+    # Проверка на Украину
+    ukraine_variants = ['украина', 'ukraine', 'україна', 'ua', 'укр']
+    if any(variant in country.lower() for variant in ukraine_variants):
+        await message.answer(messages.UKRAINE_RESTRICTION)
+        await state.clear()
+        return
+    
     await state.update_data(country=country)
     
-    # Логируем действие
+    # Сохраняем действие
     async with db_manager.get_session() as session:
-        action = UserAction(user_id=message.from_user.id, action="enter_country")
-        session.add(action)
+        await save_user_action(session, message.from_user.id, 'enter_country')
+        await session.commit()
     
-    # Запрашиваем телефон
-    await message.answer(
-        messages.REGISTRATION_PHONE,
-        reply_markup=get_back_keyboard()
-    )
     await state.set_state(RegistrationStates.waiting_for_phone)
-
-@router.message(RegistrationStates.waiting_for_phone, F.text == messages.BTN_BACK)
-async def back_from_phone(message: Message, state: FSMContext):
-    """Возврат к вводу страны"""
-    await message.answer(
-        messages.REGISTRATION_COUNTRY,
-        reply_markup=get_back_keyboard()
-    )
-    await state.set_state(RegistrationStates.waiting_for_country)
+    await message.answer(messages.ASK_PHONE)
 
 @router.message(RegistrationStates.waiting_for_phone)
 async def process_phone(message: Message, state: FSMContext):
     """Обработка телефона"""
     phone = message.text.strip()
     
-    # Форматируем телефон
-    phone = format_phone(phone)
+    # Убираем все символы кроме цифр и +
+    phone = re.sub(r'[^\d+]', '', phone)
     
-    # Валидация
-    is_valid, error_msg = validate_phone(phone)
-    if not is_valid:
-        await message.answer(error_msg)
+    # Проверка телефона
+    if not phone.startswith('+'):
+        await message.answer("❌ Пожалуйста, добавьте код страны, например: +49 для Германии")
         return
     
-    # Сохраняем в состояние
+    if len(phone) < 10 or len(phone) > 15:
+        await message.answer("❌ Неверный формат номера. Введите номер с кодом страны:")
+        return
+    
     await state.update_data(phone=phone)
     
-    # Логируем действие
+    # Сохраняем действие
     async with db_manager.get_session() as session:
-        action = UserAction(user_id=message.from_user.id, action="enter_phone")
-        session.add(action)
+        await save_user_action(session, message.from_user.id, 'enter_phone')
+        await session.commit()
     
-    # Запрашиваем время
+    await state.set_state(RegistrationStates.waiting_for_time)
     await message.answer(
-        messages.REGISTRATION_TIME,
+        messages.ASK_TIME,
         reply_markup=get_time_selection_keyboard()
     )
-    await state.set_state(RegistrationStates.waiting_for_time)
 
 @router.callback_query(RegistrationStates.waiting_for_time, F.data.startswith("time_"))
 async def process_time(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора времени"""
-    time_map = {
-        "time_9_12": "9:00 - 12:00",
-        "time_12_15": "12:00 - 15:00",
-        "time_15_18": "15:00 - 18:00",
-        "time_18_21": "18:00 - 21:00"
-    }
+    time_slot = callback.data.replace("time_", "").replace("_", " - ")
+    await state.update_data(preferred_time=time_slot)
     
-    preferred_time = time_map.get(callback.data, "9:00 - 12:00")
-    await state.update_data(preferred_time=preferred_time)
-    
-    # Логируем действие
+    # Сохраняем действие
     async with db_manager.get_session() as session:
-        action = UserAction(user_id=callback.from_user.id, action="enter_time")
-        session.add(action)
+        await save_user_action(session, callback.from_user.id, 'enter_time')
+        await session.commit()
     
-    # Показываем данные для подтверждения
+    # Получаем все данные
     data = await state.get_data()
-    confirmation_text = messages.REGISTRATION_CONFIRM.format(
-        full_name=data['full_name'],
+    
+    confirmation_text = messages.CONFIRMATION_TEXT.format(
+        name=data['full_name'],
         country=data['country'],
         phone=data['phone'],
-        preferred_time=data['preferred_time']
+        time=time_slot
     )
     
-    await callback.message.edit_text(confirmation_text)
-    await callback.message.answer(
-        "Подтвердите данные:",
+    await state.set_state(RegistrationStates.confirmation)
+    await callback.message.edit_text(
+        confirmation_text,
         reply_markup=get_confirmation_keyboard()
     )
-    await state.set_state(RegistrationStates.confirming_data)
     await callback.answer()
 
-@router.message(RegistrationStates.confirming_data, F.text == messages.BTN_BACK)
-async def back_from_confirmation(message: Message, state: FSMContext):
-    """Возврат к выбору времени"""
-    await message.answer(
-        messages.REGISTRATION_TIME,
-        reply_markup=get_time_selection_keyboard()
-    )
-    await state.set_state(RegistrationStates.waiting_for_time)
-
-@router.message(RegistrationStates.confirming_data, F.text == messages.BTN_EDIT)
-async def edit_data(message: Message, state: FSMContext):
-    """Редактирование данных - начинаем сначала"""
-    await message.answer(
-        "Давайте заполним данные заново.\n\n" + messages.REGISTRATION_NAME,
-        reply_markup=get_back_keyboard()
-    )
-    await state.set_state(RegistrationStates.waiting_for_name)
-
-@router.message(RegistrationStates.confirming_data, F.text == messages.BTN_CONFIRM)
-async def confirm_registration(message: Message, state: FSMContext):
-    """Подтверждение и сохранение заявки"""
-    user_id = message.from_user.id
+@router.callback_query(RegistrationStates.confirmation, F.data == "confirm")
+async def confirm_registration(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение регистрации"""
+    user_id = callback.from_user.id
     data = await state.get_data()
     
     async with db_manager.get_session() as session:
-        # Получаем пользователя
-        user = (await session.execute(select(BotUser).where(BotUser.user_id == user_id))).scalar_one_or_none()
+        # Обновляем информацию о пользователе
+        result = await session.execute(
+            select(BotUser).where(BotUser.user_id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        
+        if user:
+            user.has_application = True
+        
+        # Получаем реферера если есть
+        result = await session.execute(
+            select(Referral).where(Referral.referred_id == user_id)
+        )
+        referral = result.scalar_one_or_none()
         
         # Создаем заявку
         application = Application(
@@ -238,60 +209,71 @@ async def confirm_registration(message: Message, state: FSMContext):
             country=data['country'],
             phone=data['phone'],
             preferred_time=data['preferred_time'],
+            referrer_id=referral.referrer_id if referral else None,
             source_id=user.source_id if user else None
         )
         
-        # Проверяем реферала
-        from database import Referral
-        referral = await session.query(Referral).filter_by(referred_id=user_id).first()
-        if referral:
-            application.referrer_id = referral.referrer_id
-        
         session.add(application)
         
-        # Обновляем статус пользователя
-        if user:
-            user.has_application = True
-        
-        # Логируем завершение
-        action = UserAction(user_id=user_id, action="complete_registration")
-        session.add(action)
+        # Сохраняем действие
+        await save_user_action(session, user_id, 'completed')
         
         await session.commit()
-        
-        # Отправляем уведомление админу
-        admin_message = f"""🆕 Новая заявка на курс!
-
-👤 Имя: {data['full_name']}
-🌍 Страна: {data['country']}
-📱 Телефон: {data['phone']}
-⏰ Удобное время: {data['preferred_time']}
-📅 Дата: {datetime.now().strftime('%d.%m.%Y %H:%M')}
-🔗 Username: @{message.from_user.username or 'отсутствует'}
-👥 Приглашен: {'Да' if referral else 'Нет'}"""
-        
-        await message.bot.send_message(config.ADMIN_ID, admin_message)
-        
-        # Отправляем конверсию если есть источник
-        if user and user.source_id:
-            source = await session.get(TrafficSource, user.source_id)
-            if source:
-                from utils.conversions import ConversionSender
-                await ConversionSender.send_lead_conversion(application, source)
     
-    # Отправляем успешное сообщение
-    bot_username = (await message.bot.get_me()).username
-    referral_link = f"https://t.me/{bot_username}?start=ref{user_id}"
+    # Отправляем уведомление админу
+    bot_info = await callback.bot.get_me()
+    referral_link = f"https://t.me/{bot_info.username}?start=ref_{user_id}"
     
-    await message.answer(
-        messages.REGISTRATION_SUCCESS.format(referral_link=referral_link),
-        reply_markup=get_reply_keyboard_existing_user()
+    admin_message = messages.ADMIN_NOTIFICATION.format(
+        name=data['full_name'],
+        country=data['country'],
+        phone=data['phone'],
+        time=data['preferred_time'],
+        date=callback.message.date.strftime('%d.%m.%Y %H:%M'),
+        username=f"@{callback.from_user.username}" if callback.from_user.username else "Не указан",
+        invited="Да" if referral else "Нет"
     )
     
-    await message.answer(
-        "Поделитесь ссылкой:",
-        reply_markup=get_share_referral_keyboard(referral_link)
+    try:
+        await callback.bot.send_message(config.ADMIN_ID, admin_message)
+    except Exception as e:
+        print(f"Ошибка отправки уведомления админу: {e}")
+    
+    # Отправляем финальное сообщение пользователю
+    await callback.message.edit_text(
+        messages.REGISTRATION_COMPLETE.format(referral_link=referral_link),
+        reply_markup=get_main_menu_existing_user()
     )
     
-    # Очищаем состояние
     await state.clear()
+    await callback.answer("✅ Заявка успешно отправлена!", show_alert=True)
+
+@router.callback_query(RegistrationStates.confirmation, F.data == "edit")
+async def edit_registration(callback: CallbackQuery, state: FSMContext):
+    """Редактирование данных"""
+    await state.set_state(RegistrationStates.waiting_for_name)
+    await callback.message.edit_text(messages.ASK_NAME)
+    await callback.answer()
+
+@router.message(F.text == messages.BTN_BACK, 
+                RegistrationStates.waiting_for_name | 
+                RegistrationStates.waiting_for_country | 
+                RegistrationStates.waiting_for_phone)
+async def back_in_registration(message: Message, state: FSMContext):
+    """Кнопка назад в процессе регистрации"""
+    current_state = await state.get_state()
+    
+    if current_state == RegistrationStates.waiting_for_name:
+        await state.clear()
+        await message.answer("Регистрация отменена. Возвращаемся в главное меню.")
+        # Вызываем обработчик главного меню
+        from handlers.start import main_menu
+        await main_menu(message, state)
+    
+    elif current_state == RegistrationStates.waiting_for_country:
+        await state.set_state(RegistrationStates.waiting_for_name)
+        await message.answer(messages.ASK_NAME)
+    
+    elif current_state == RegistrationStates.waiting_for_phone:
+        await state.set_state(RegistrationStates.waiting_for_country)
+        await message.answer(messages.ASK_COUNTRY)

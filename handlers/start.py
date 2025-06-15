@@ -17,10 +17,17 @@ from keyboards.keyboards import (
     get_reply_keyboard_existing_user
 )
 from utils import messages
-from middlewares.tracking import save_user_action
 
 router = Router(name="start")
 logger = logging.getLogger(__name__)
+
+async def save_user_action(session, user_id: int, action: str):
+    """Сохраняет действие пользователя"""
+    user_action = UserAction(
+        user_id=user_id,
+        action=action
+    )
+    session.add(user_action)
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
@@ -88,17 +95,6 @@ async def cmd_start(message: Message, state: FSMContext):
                 )
                 session.add(referral)
             
-            # Сохраняем click_id если есть
-            if click_id:
-                from database import UserClick
-                user_click = UserClick(
-                    user_id=user_id,
-                    click_id=click_id,
-                    platform='unknown',
-                    created_at=message.date
-                )
-                session.add(user_click)
-            
             await session.commit()
         else:
             user.last_activity = message.date
@@ -110,6 +106,7 @@ async def cmd_start(message: Message, state: FSMContext):
         
         # Сохраняем действие пользователя
         await save_user_action(session, user_id, 'start')
+        await session.commit()
         
         if application:
             # Пользователь уже подавал заявку
@@ -208,10 +205,10 @@ async def cmd_help(message: Message):
     await message.answer(messages.HELP_MESSAGE)
 
 @router.message(Command("apply"))
-async def cmd_apply(message: Message):
+async def cmd_apply(message: Message, state: FSMContext):
     """Быстрая команда для записи на курс"""
     from handlers.registration import start_registration
-    await start_registration(message, FSMContext())
+    await start_registration(message, state)
 
 @router.message(Command("ref"))
 async def cmd_ref(message: Message):
