@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
@@ -46,7 +47,7 @@ async def cmd_start(message: Message, state: FSMContext):
             logger.info(f"User {user_id} came from source {source_code}")
     
     async with db_manager.get_session() as session:
-        # Проверяем, есть ли пользователь в БД
+        user = (await session.execute(select(BotUser).where(BotUser.user_id == user_id))).scalar_one_or_none()
         user = await session.get(BotUser, user_id)
         
         if not user:
@@ -105,7 +106,7 @@ async def cmd_start(message: Message, state: FSMContext):
             )
         else:
             # Новый пользователь
-            if referrer_id and referrer_id != user_id:
+                referrer = (await session.execute(select(BotUser).where(BotUser.user_id == referrer_id))).scalar_one_or_none()
                 referrer = await session.get(BotUser, referrer_id)
                 referrer_name = referrer.username or "пользователя"
                 await message.answer(
