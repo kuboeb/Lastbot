@@ -1,7 +1,7 @@
 """
 Админ-панель для управления ботом
 """
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, json
 
 def format_datetime(dt):
     '''Форматировать datetime для отображения'''
@@ -15,6 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 import pytz
 import os
+import json
 import io
 from dotenv import load_dotenv
 
@@ -747,11 +748,6 @@ def get_text_by_key(key):
 @login_required
 def broadcast():
     return render_template('broadcast.html')
-
-@app.route('/traffic-sources')
-@login_required
-def traffic_sources():
-    return render_template('traffic_sources.html')
 
 @app.route('/system')
 @login_required
