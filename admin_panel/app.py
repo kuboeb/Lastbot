@@ -1634,11 +1634,12 @@ def delete_integration(integration_id):
 
 
 @app.route('/test-db')
-@login_required
 def test_db():
     """Тест подключения к БД"""
     try:
         import psycopg2
+    except Exception as e:
+        raise e
 from psycopg2.extras import RealDictCursor
         
         
