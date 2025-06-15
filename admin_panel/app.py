@@ -351,13 +351,16 @@ def stats_chart():
             await session.commit()
             logger.info("Default admin created")
 
+# Initialize database on startup
+with app.app_context():
+    from database import db_manager
+    import asyncio
+    asyncio.run(db_manager.connect())
+
 if __name__ == '__main__':
     app.run(
         host='0.0.0.0',
         port=config.ADMIN_PANEL_PORT,
         debug=False
     )
-
-with app.app_context():
-    init_db()
 
