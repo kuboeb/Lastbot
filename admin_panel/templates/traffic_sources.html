@@ -4,204 +4,124 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Заголовок и кнопка создания -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <h1 class="h3 mb-0">
-                    <i class="bi bi-megaphone text-primary"></i> Источники трафика
-                </h1>
-                <button class="btn btn-success" onclick="showCreateModal()">
-                    <i class="bi bi-plus-circle"></i> Создать источник
-                </button>
-            </div>
-        </div>
+    <!-- Заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Источники трафика</h1>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createModal">
+            <i class="bi bi-plus-circle"></i> Создать источник
+        </button>
     </div>
     
-    <!-- Статистика карточками -->
+    <!-- Статистика -->
     <div class="row mb-4">
-        <div class="col-xl-3 col-lg-6 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted mb-2">Всего источников</h6>
-                            <h3 class="mb-0">{{ sources|length }}</h3>
-                        </div>
-                        <div class="text-primary opacity-75">
-                            <i class="bi bi-collection fs-1"></i>
-                        </div>
-                    </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Всего источников</h5>
+                    <h2 class="text-primary">{{ sources|length }}</h2>
                 </div>
             </div>
         </div>
-        
-        <div class="col-xl-3 col-lg-6 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted mb-2">Активных</h6>
-                            <h3 class="mb-0 text-success">{{ sources|selectattr('is_active')|list|length }}</h3>
-                        </div>
-                        <div class="text-success opacity-75">
-                            <i class="bi bi-check-circle fs-1"></i>
-                        </div>
-                    </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Активных</h5>
+                    <h2 class="text-success">{{ sources|selectattr('is_active')|list|length }}</h2>
                 </div>
             </div>
         </div>
-        
-        <div class="col-xl-3 col-lg-6 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted mb-2">Всего кликов</h6>
-                            <h3 class="mb-0 text-info">{{ sources|sum(attribute='clicks') }}</h3>
-                        </div>
-                        <div class="text-info opacity-75">
-                            <i class="bi bi-cursor-fill fs-1"></i>
-                        </div>
-                    </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Всего кликов</h5>
+                    <h2 class="text-info">{{ sources|sum(attribute='clicks') }}</h2>
                 </div>
             </div>
         </div>
-        
-        <div class="col-xl-3 col-lg-6 col-md-6 mb-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="text-muted mb-2">Всего лидов</h6>
-                            <h3 class="mb-0 text-warning">{{ sources|sum(attribute='leads') }}</h3>
-                        </div>
-                        <div class="text-warning opacity-75">
-                            <i class="bi bi-people-fill fs-1"></i>
-                        </div>
-                    </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5>Всего лидов</h5>
+                    <h2 class="text-warning">{{ sources|sum(attribute='leads') }}</h2>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Таблица источников -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-3">
-            <h5 class="mb-0">Список источников</h5>
-        </div>
-        <div class="card-body p-0">
+    <!-- Таблица -->
+    <div class="card">
+        <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="bg-light">
+                <table class="table table-hover">
+                    <thead>
                         <tr>
-                            <th class="border-0 px-4">Источник</th>
-                            <th class="border-0">Платформа</th>
-                            <th class="border-0">Ссылка</th>
-                            <th class="border-0 text-center">Статистика</th>
-                            <th class="border-0 text-center">CR%</th>
-                            <th class="border-0 text-center">Статус</th>
-                            <th class="border-0 text-center">Действия</th>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Платформа</th>
+                            <th>Ссылка</th>
+                            <th>Клики</th>
+                            <th>Старты</th>
+                            <th>Лиды</th>
+                            <th>CR%</th>
+                            <th>Статус</th>
+                            <th>Действия</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for source in sources %}
                         <tr>
-                            <td class="px-4 align-middle">
-                                <div>
-                                    <div class="fw-bold">{{ source.name }}</div>
-                                    <small class="text-muted">ID: {{ source.id }}</small>
-                                </div>
-                            </td>
-                            
-                            <td class="align-middle">
-                                <span class="badge bg-{{ source.platform_color }} px-3 py-2">
-                                    {% if source.platform == 'facebook' %}
-                                        <i class="bi bi-facebook"></i>
-                                    {% elif source.platform == 'google' %}
-                                        <i class="bi bi-google"></i>
-                                    {% elif source.platform == 'tiktok' %}
-                                        <i class="bi bi-music-note-beamed"></i>
-                                    {% elif source.platform == 'telegram_ads' %}
-                                        <i class="bi bi-telegram"></i>
-                                    {% else %}
-                                        <i class="bi bi-megaphone"></i>
-                                    {% endif %}
+                            <td>{{ source.id }}</td>
+                            <td>{{ source.name }}</td>
+                            <td>
+                                <span class="badge bg-{{ source.platform_color }}">
                                     {{ source.platform_name }}
                                 </span>
                             </td>
-                            
-                            <td class="align-middle">
-                                <div class="d-flex align-items-center" style="max-width: 350px;">
-                                    <input type="text" class="form-control form-control-sm me-2" 
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <input type="text" class="form-control form-control-sm" 
                                            value="{{ source.link }}" readonly 
-                                           id="link-{{ source.id }}">
-                                    <button class="btn btn-sm btn-outline-secondary" 
-                                            onclick="copyLink('{{ source.id }}', '{{ source.link }}')">
+                                           style="max-width: 300px;">
+                                    <button class="btn btn-sm btn-outline-secondary ms-2" 
+                                            onclick="copyLink('{{ source.link }}')">
                                         <i class="bi bi-clipboard"></i>
                                     </button>
                                 </div>
                             </td>
-                            
-                            <td class="align-middle text-center">
-                                <div class="d-flex justify-content-center gap-3">
-                                    <div>
-                                        <i class="bi bi-cursor text-info"></i>
-                                        <span class="fw-bold">{{ source.clicks }}</span>
-                                        <small class="text-muted d-block">клики</small>
-                                    </div>
-                                    <div>
-                                        <i class="bi bi-play-circle text-success"></i>
-                                        <span class="fw-bold">{{ source.starts }}</span>
-                                        <small class="text-muted d-block">старты</small>
-                                    </div>
-                                    <div>
-                                        <i class="bi bi-person-check text-warning"></i>
-                                        <span class="fw-bold">{{ source.leads }}</span>
-                                        <small class="text-muted d-block">лиды</small>
-                                    </div>
-                                </div>
-                            </td>
-                            
-                            <td class="align-middle text-center">
+                            <td>{{ source.clicks }}</td>
+                            <td>{{ source.starts }}</td>
+                            <td>{{ source.leads }}</td>
+                            <td>
                                 {% if source.cr > 0 %}
-                                    <span class="badge bg-success fs-6">{{ source.cr }}%</span>
+                                    <span class="badge bg-success">{{ source.cr }}%</span>
                                 {% else %}
-                                    <span class="text-muted">-</span>
+                                    -
                                 {% endif %}
                             </td>
-                            
-                            <td class="align-middle text-center">
-                                <div class="form-check form-switch d-flex justify-content-center">
-                                    <input class="form-check-input" type="checkbox" 
-                                           {% if source.is_active %}checked{% endif %}
-                                           onchange="toggleSource({{ source.id }})"
-                                           style="cursor: pointer;">
-                                </div>
+                            <td>
+                                {% if source.is_active %}
+                                    <span class="badge bg-success">Активен</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Выключен</span>
+                                {% endif %}
                             </td>
-                            
-                            <td class="align-middle text-center">
-                                <div class="btn-group" role="group">
-                                    <a href="{{ url_for('traffic_source_details', source_id=source.id) }}" 
-                                       class="btn btn-sm btn-outline-primary" title="Подробнее">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                    <button class="btn btn-sm btn-outline-warning" 
-                                            onclick="testConversion({{ source.id }})" title="Тест конверсии">
-                                        <i class="bi bi-bug"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" 
-                                            onclick="deleteSource({{ source.id }}, '{{ source.name }}')" title="Удалить">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">
-                                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
-                                Источники трафика не созданы
+                            <td>
+                                <a href="{{ url_for('traffic_source_details', source_id=source.id) }}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <button class="btn btn-sm btn-warning" 
+                                        onclick="testConversion({{ source.id }})">
+                                    <i class="bi bi-bug"></i>
+                                </button>
+                                <button class="btn btn-sm btn-secondary" 
+                                        onclick="toggleSource({{ source.id }})">
+                                    <i class="bi bi-toggle-{% if source.is_active %}on{% else %}off{% endif %}"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" 
+                                        onclick="deleteSource({{ source.id }}, '{{ source.name }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </td>
                         </tr>
                         {% endfor %}
@@ -212,596 +132,213 @@
     </div>
 </div>
 
-<!-- Модальное окно создания источника -->
-<div class="modal fade" id="createSourceModal" tabindex="-1">
+<!-- Модальное окно создания -->
+<div class="modal fade" id="createModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header border-0">
+            <div class="modal-header">
                 <h5 class="modal-title">Создать источник трафика</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <!-- Шаги создания -->
-                <div class="step-indicator mb-4">
-                    <div class="d-flex justify-content-between">
-                        <div class="step active" id="step-indicator-1">
-                            <div class="step-icon">1</div>
-                            <small>Основная информация</small>
-                        </div>
-                        <div class="step" id="step-indicator-2">
-                            <div class="step-icon">2</div>
-                            <small>Настройки платформы</small>
-                        </div>
-                        <div class="step" id="step-indicator-3">
-                            <div class="step-icon">3</div>
-                            <small>Готово</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Шаг 1: Основная информация -->
-                <div id="step1" class="step-content">
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Название источника</label>
-                        <input type="text" class="form-control" id="sourceName" 
-                               placeholder="Например: Иван - Facebook - Испания">
-                        <small class="text-muted">Используйте понятное название для идентификации</small>
+                <form id="createForm">
+                    <div class="mb-3">
+                        <label class="form-label">Название источника</label>
+                        <input type="text" class="form-control" id="sourceName" required>
                     </div>
                     
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Выберите платформу</label>
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="facebook" onclick="selectPlatform('facebook')">
-                                    <i class="bi bi-facebook"></i>
-                                    <span>Facebook Ads</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="google" onclick="selectPlatform('google')">
-                                    <i class="bi bi-google"></i>
-                                    <span>Google Ads</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="tiktok" onclick="selectPlatform('tiktok')">
-                                    <i class="bi bi-music-note-beamed"></i>
-                                    <span>TikTok Ads</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="telegram_ads" onclick="selectPlatform('telegram_ads')">
-                                    <i class="bi bi-telegram"></i>
-                                    <span>Telegram Ads</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="onclick" onclick="selectPlatform('onclick')">
-                                    <i class="bi bi-mouse"></i>
-                                    <span>OnClick</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="richads" onclick="selectPlatform('richads')">
-                                    <i class="bi bi-currency-dollar"></i>
-                                    <span>RichAds</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="pushhouse" onclick="selectPlatform('pushhouse')">
-                                    <i class="bi bi-bell"></i>
-                                    <span>PushHouse</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="evadav" onclick="selectPlatform('evadav')">
-                                    <i class="bi bi-badge-ad"></i>
-                                    <span>EvaDav</span>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="platform-card" data-platform="propeller" onclick="selectPlatform('propeller')">
-                                    <i class="bi bi-airplane"></i>
-                                    <span>PropellerAds</span>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label">Платформа</label>
+                        <select class="form-select" id="platform" required>
+                            <option value="">Выберите платформу</option>
+                            <option value="facebook">Facebook Ads</option>
+                            <option value="google">Google Ads</option>
+                            <option value="tiktok">TikTok Ads</option>
+                            <option value="telegram_ads">Telegram Ads</option>
+                            <option value="onclick">OnClick</option>
+                            <option value="richads">RichAds</option>
+                            <option value="pushhouse">PushHouse</option>
+                            <option value="evadav">EvaDav</option>
+                            <option value="propeller">PropellerAds</option>
+                        </select>
                     </div>
                     
-                    <div class="d-flex justify-content-end">
-                        <button class="btn btn-primary" onclick="nextStep()" id="nextBtn" disabled>
-                            Далее <i class="bi bi-arrow-right"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Шаг 2: Настройки платформы -->
-                <div id="step2" class="step-content" style="display: none;">
                     <div id="platformSettings"></div>
-                    
-                    <div class="alert alert-info mt-3">
-                        <i class="bi bi-info-circle"></i>
-                        <span id="platformHelp"></span>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between">
-                        <button class="btn btn-secondary" onclick="prevStep()">
-                            <i class="bi bi-arrow-left"></i> Назад
-                        </button>
-                        <button class="btn btn-success" onclick="createSource()">
-                            <i class="bi bi-check-circle"></i> Создать источник
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Шаг 3: Результат -->
-                <div id="step3" class="step-content" style="display: none;">
-                    <div class="text-center py-4">
-                        <i class="bi bi-check-circle text-success" style="font-size: 4rem;"></i>
-                        <h5 class="mt-3">Источник создан успешно!</h5>
-                    </div>
-                    
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Ваша ссылка для рекламы:</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="generatedLink" readonly>
-                            <button class="btn btn-success" onclick="copyGeneratedLink()">
-                                <i class="bi bi-clipboard"></i> Копировать
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="alert alert-warning">
-                        <h6><i class="bi bi-book"></i> Инструкция для баера:</h6>
-                        <ol class="mb-0" id="buyerInstructions"></ol>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between">
-                        <button class="btn btn-secondary" data-bs-dismiss="modal">
-                            Закрыть
-                        </button>
-                        <button class="btn btn-primary" onclick="createAnother()">
-                            <i class="bi bi-plus-circle"></i> Создать еще
-                        </button>
-                    </div>
-                </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-success" onclick="createSource()">Создать</button>
             </div>
         </div>
     </div>
 </div>
 
-<style>
-/* Карточки платформ */
-.platform-card {
-    border: 2px solid #e0e0e0;
-    border-radius: 10px;
-    padding: 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    height: 100%;
-}
-
-.platform-card:hover {
-    border-color: #0d6efd;
-    background-color: #f8f9fa;
-    transform: translateY(-2px);
-}
-
-.platform-card.selected {
-    border-color: #0d6efd;
-    background-color: #0d6efd;
-    color: white;
-}
-
-.platform-card i {
-    font-size: 2rem;
-    display: block;
-    margin-bottom: 10px;
-}
-
-/* Индикатор шагов */
-.step-indicator {
-    position: relative;
-}
-
-.step-indicator::before {
-    content: '';
-    position: absolute;
-    top: 20px;
-    left: 25px;
-    right: 25px;
-    height: 2px;
-    background: #e0e0e0;
-    z-index: 0;
-}
-
-.step {
-    text-align: center;
-    position: relative;
-    z-index: 1;
-}
-
-.step-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: #e0e0e0;
-    color: #6c757d;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.step.active .step-icon {
-    background: #0d6efd;
-    color: white;
-}
-
-.step.completed .step-icon {
-    background: #198754;
-    color: white;
-}
-
-/* Анимации */
-.step-content {
-    animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* Улучшенная таблица */
-.table > :not(caption) > * > * {
-    padding: 1rem 0.75rem;
-}
-
-.btn-group .btn {
-    padding: 0.25rem 0.5rem;
-}
-
-/* Мобильная адаптация */
-@media (max-width: 768px) {
-    .platform-card {
-        padding: 15px;
-        font-size: 0.9rem;
-    }
-    
-    .platform-card i {
-        font-size: 1.5rem;
-    }
-    
-    .table {
-        font-size: 0.875rem;
-    }
-    
-    .btn-group .btn {
-        padding: 0.2rem 0.4rem;
-        font-size: 0.875rem;
-    }
-}
-</style>
-
 <script>
 // Конфигурация платформ
-const platformConfigs = {
-    facebook: {
-        name: 'Facebook Ads',
-        fields: [
-            {name: 'pixel_id', label: 'Pixel ID', type: 'text', placeholder: '123456789012345', required: true},
-            {name: 'access_token', label: 'Access Token', type: 'textarea', placeholder: 'Вставьте ваш access token', required: true, rows: 3}
-        ],
-        help: 'Получите Pixel ID и Access Token в Facebook Business Manager. Token нужен для отправки конверсий через Conversion API.',
-        instructions: [
-            'Используйте эту ссылку в рекламных кампаниях Facebook',
-            'Убедитесь, что включена передача параметра fbclid',
-            'Конверсии будут отправляться автоматически при получении заявки'
-        ]
-    },
-    google: {
-        name: 'Google Ads',
-        fields: [
-            {name: 'conversion_id', label: 'Conversion ID', type: 'text', placeholder: 'AW-123456789', required: true},
-            {name: 'conversion_label', label: 'Conversion Label', type: 'text', placeholder: 'AbC-D_efG-h12_34-567', required: true}
-        ],
-        help: 'Найдите эти данные в Google Ads → Инструменты → Конверсии → Тег',
-        instructions: [
-            'Добавьте ссылку в объявления Google Ads',
-            'Включите автотегирование для отслеживания gclid',
-            'Конверсии будут отправляться при получении заявки'
-        ]
-    },
-    tiktok: {
-        name: 'TikTok Ads',
-        fields: [
-            {name: 'pixel_id', label: 'Pixel ID', type: 'text', placeholder: 'C1234567890ABCDEF', required: true},
-            {name: 'access_token', label: 'Access Token', type: 'text', placeholder: 'Ваш access token', required: true}
-        ],
-        help: 'Получите данные в TikTok Ads Manager → События → Веб-события',
-        instructions: [
-            'Используйте ссылку в TikTok Ads',
-            'Параметр ttclid будет передаваться автоматически',
-            'События CompleteRegistration отправляются при заявке'
-        ]
-    },
-    telegram_ads: {
-        name: 'Telegram Ads',
-        fields: [],
-        help: 'Дополнительные настройки не требуются. Просто используйте сгенерированную ссылку.',
-        instructions: [
-            'Используйте ссылку в Telegram Ads',
-            'Статистика собирается автоматически',
-            'Конверсии отслеживаются по заявкам'
-        ]
-    },
-    onclick: {
-        name: 'OnClick',
-        fields: [
-            {name: 'postback_url', label: 'Postback URL', type: 'textarea', placeholder: 'https://...', required: true, rows: 2}
-        ],
-        help: 'Вставьте Postback URL из личного кабинета OnClick',
-        instructions: [
-            'Добавьте к ссылке параметр &clickid={clickid}',
-            'Postback будет отправлен при конверсии',
-            'Используйте макросы платформы'
-        ]
-    },
-    richads: {
-        name: 'RichAds',
-        fields: [
-            {name: 'postback_url', label: 'Postback URL', type: 'textarea', placeholder: 'https://...', required: true, rows: 2}
-        ],
-        help: 'Настройте Postback в личном кабинете RichAds',
-        instructions: [
-            'Используйте макрос {click_id} в ссылке',
-            'S2S postback отправится при конверсии',
-            'Поддерживаются все стандартные макросы'
-        ]
-    },
-    pushhouse: {
-        name: 'PushHouse',
-        fields: [
-            {name: 'postback_url', label: 'Postback URL', type: 'textarea', placeholder: 'https://...', required: true, rows: 2}
-        ],
-        help: 'Получите Postback URL в настройках кампании PushHouse',
-        instructions: [
-            'Добавьте &clickid={clickid} к ссылке',
-            'Автоматическая отправка конверсий',
-            'Поддержка всех событий'
-        ]
-    },
-    evadav: {
-        name: 'EvaDav',
-        fields: [
-            {name: 'postback_url', label: 'Postback URL', type: 'textarea', placeholder: 'https://...', required: true, rows: 2}
-        ],
-        help: 'Настройте S2S интеграцию в EvaDav',
-        instructions: [
-            'Используйте параметр subid={subid}',
-            'Postback отправляется при получении лида',
-            'Проверьте настройки в личном кабинете'
-        ]
-    },
-    propeller: {
-        name: 'PropellerAds',
-        fields: [
-            {name: 'postback_url', label: 'Postback URL', type: 'textarea', placeholder: 'https://...', required: true, rows: 2}
-        ],
-        help: 'Получите URL в настройках конверсий PropellerAds',
-        instructions: [
-            'Добавьте clickid=${SUBID} к ссылке',
-            'S2S conversion tracking включен',
-            'Используйте макросы платформы'
-        ]
-    }
+const platformSettings = {
+    facebook: `
+        <div class="mb-3">
+            <label class="form-label">Pixel ID</label>
+            <input type="text" class="form-control" id="pixel_id" placeholder="123456789">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Access Token</label>
+            <textarea class="form-control" id="access_token" rows="3"></textarea>
+        </div>
+    `,
+    google: `
+        <div class="mb-3">
+            <label class="form-label">Conversion ID</label>
+            <input type="text" class="form-control" id="conversion_id" placeholder="AW-123456789">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Conversion Label</label>
+            <input type="text" class="form-control" id="conversion_label">
+        </div>
+    `,
+    tiktok: `
+        <div class="mb-3">
+            <label class="form-label">Pixel ID</label>
+            <input type="text" class="form-control" id="pixel_id">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Access Token</label>
+            <input type="text" class="form-control" id="access_token">
+        </div>
+    `,
+    telegram_ads: '',
+    onclick: `
+        <div class="mb-3">
+            <label class="form-label">Postback URL</label>
+            <input type="text" class="form-control" id="postback_url">
+        </div>
+    `,
+    richads: `
+        <div class="mb-3">
+            <label class="form-label">Postback URL</label>
+            <input type="text" class="form-control" id="postback_url">
+        </div>
+    `,
+    pushhouse: `
+        <div class="mb-3">
+            <label class="form-label">Postback URL</label>
+            <input type="text" class="form-control" id="postback_url">
+        </div>
+    `,
+    evadav: `
+        <div class="mb-3">
+            <label class="form-label">Postback URL</label>
+            <input type="text" class="form-control" id="postback_url">
+        </div>
+    `,
+    propeller: `
+        <div class="mb-3">
+            <label class="form-label">Postback URL</label>
+            <input type="text" class="form-control" id="postback_url">
+        </div>
+    `
 };
 
-let selectedPlatform = null;
-let currentStep = 1;
+// Обработчик изменения платформы
+document.getElementById('platform').addEventListener('change', function() {
+    const platform = this.value;
+    document.getElementById('platformSettings').innerHTML = platformSettings[platform] || '';
+});
 
-// Показать модальное окно
-function showCreateModal() {
-    currentStep = 1;
-    selectedPlatform = null;
-    document.getElementById('sourceName').value = '';
-    document.querySelectorAll('.platform-card').forEach(card => card.classList.remove('selected'));
-    document.getElementById('nextBtn').disabled = true;
-    showStep(1);
-    
-    const modal = new bootstrap.Modal(document.getElementById('createSourceModal'));
-    modal.show();
-}
-
-// Выбор платформы
-function selectPlatform(platform) {
-    selectedPlatform = platform;
-    document.querySelectorAll('.platform-card').forEach(card => {
-        card.classList.remove('selected');
-    });
-    document.querySelector(`[data-platform="${platform}"]`).classList.add('selected');
-    
-    // Проверяем, можно ли идти дальше
-    checkStep1();
-}
-
-// Проверка первого шага
-function checkStep1() {
-    const name = document.getElementById('sourceName').value.trim();
-    document.getElementById('nextBtn').disabled = !name || !selectedPlatform;
-}
-
-// Следующий шаг
-function nextStep() {
-    if (currentStep === 1) {
-        const config = platformConfigs[selectedPlatform];
+// Функция для AJAX запросов (с учетом всех проблем)
+async function makeRequest(url, method = 'POST', data = null) {
+    try {
+        const options = {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        };
         
-        // Генерируем поля
-        let fieldsHtml = '';
-        config.fields.forEach(field => {
-            fieldsHtml += `
-                <div class="mb-3">
-                    <label class="form-label fw-bold">${field.label}</label>
-                    ${field.type === 'textarea' ? 
-                        `<textarea class="form-control" id="${field.name}" placeholder="${field.placeholder}" rows="${field.rows || 3}" ${field.required ? 'required' : ''}></textarea>` :
-                        `<input type="${field.type}" class="form-control" id="${field.name}" placeholder="${field.placeholder}" ${field.required ? 'required' : ''}>`
-                    }
-                </div>
-            `;
-        });
-        
-        if (!fieldsHtml) {
-            fieldsHtml = '<p class="text-muted">Дополнительные настройки не требуются для этой платформы.</p>';
+        if (data) {
+            options.body = JSON.stringify(data);
         }
         
-        document.getElementById('platformSettings').innerHTML = fieldsHtml;
-        document.getElementById('platformHelp').textContent = config.help;
+        const response = await fetch(url, options);
         
-        showStep(2);
+        // Проверяем тип ответа
+        const contentType = response.headers.get("content-type");
+        
+        // Если вернулся HTML (не JSON), значит проблема с сессией
+        if (contentType && contentType.includes("text/html")) {
+            // Перезагружаем страницу, чтобы перенаправить на логин
+            window.location.reload();
+            return null;
+        }
+        
+        // Если не JSON, но и не HTML
+        if (!contentType || !contentType.includes("application/json")) {
+            throw new Error("Неверный формат ответа от сервера");
+        }
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Ошибка сервера');
+        }
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Request error:', error);
+        throw error;
     }
 }
 
-// Предыдущий шаг
-function prevStep() {
-    if (currentStep === 2) {
-        showStep(1);
-    }
-}
-
-// Показать шаг
-function showStep(step) {
-    // Скрываем все шаги
-    document.querySelectorAll('.step-content').forEach(content => {
-        content.style.display = 'none';
+// Копировать ссылку
+function copyLink(link) {
+    navigator.clipboard.writeText(link).then(() => {
+        const btn = event.target.closest('button');
+        const icon = btn.querySelector('i');
+        icon.classList.remove('bi-clipboard');
+        icon.classList.add('bi-check');
+        setTimeout(() => {
+            icon.classList.remove('bi-check');
+            icon.classList.add('bi-clipboard');
+        }, 2000);
     });
-    
-    // Показываем нужный шаг
-    document.getElementById(`step${step}`).style.display = 'block';
-    
-    // Обновляем индикаторы
-    document.querySelectorAll('.step').forEach((indicator, index) => {
-        if (index + 1 < step) {
-            indicator.classList.add('completed');
-            indicator.classList.remove('active');
-        } else if (index + 1 === step) {
-            indicator.classList.add('active');
-            indicator.classList.remove('completed');
-        } else {
-            indicator.classList.remove('active', 'completed');
-        }
-    });
-    
-    currentStep = step;
 }
 
 // Создать источник
 async function createSource() {
-    const config = platformConfigs[selectedPlatform];
+    const name = document.getElementById('sourceName').value;
+    const platform = document.getElementById('platform').value;
+    
+    if (!name || !platform) {
+        alert('Заполните все обязательные поля');
+        return;
+    }
+    
+    // Собираем настройки платформы
     const settings = {};
-    
-    // Собираем настройки
-    for (const field of config.fields) {
-        const element = document.getElementById(field.name);
-        if (element) {
-            const value = element.value.trim();
-            if (field.required && !value) {
-                alert(`Заполните поле ${field.label}`);
-                return;
-            }
-            settings[field.name] = value;
-        }
-    }
-    
-    const data = {
-        name: document.getElementById('sourceName').value.trim(),
-        platform: selectedPlatform,
-        settings: settings
-    };
+    const settingsContainer = document.getElementById('platformSettings');
+    settingsContainer.querySelectorAll('input, textarea').forEach(input => {
+        settings[input.id] = input.value;
+    });
     
     try {
-        const response = await fetch('/traffic-sources/create', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
+        const result = await makeRequest('/traffic-sources/create', 'POST', {
+            name: name,
+            platform: platform,
+            settings: settings
         });
         
-        const result = await response.json();
-        
-        if (result.success) {
-            // Показываем результат
-            document.getElementById('generatedLink').value = result.link;
-            
-            // Генерируем инструкции
-            let instructionsHtml = '';
-            config.instructions.forEach(instruction => {
-                instructionsHtml += `<li>${instruction}</li>`;
-            });
-            document.getElementById('buyerInstructions').innerHTML = instructionsHtml;
-            
-            showStep(3);
+        if (result && result.success) {
+            alert(`Источник создан! Ссылка: ${result.link}`);
+            window.location.reload();
         } else {
-            alert('Ошибка: ' + (result.error || 'Неизвестная ошибка'));
+            alert('Ошибка: ' + (result?.error || 'Неизвестная ошибка'));
         }
     } catch (error) {
-        alert('Ошибка создания источника: ' + error.message);
-    }
-}
-
-// Создать еще один источник
-function createAnother() {
-    showStep(1);
-    selectedPlatform = null;
-    document.getElementById('sourceName').value = '';
-    document.querySelectorAll('.platform-card').forEach(card => card.classList.remove('selected'));
-    document.getElementById('nextBtn').disabled = true;
-}
-
-// Копировать ссылку
-function copyLink(sourceId, link) {
-    navigator.clipboard.writeText(link).then(() => {
-        const btn = event.currentTarget;
-        const icon = btn.querySelector('i');
-        icon.classList.remove('bi-clipboard');
-        icon.classList.add('bi-check');
-        btn.classList.remove('btn-outline-secondary');
-        btn.classList.add('btn-success');
-        
-        setTimeout(() => {
-            icon.classList.remove('bi-check');
-            icon.classList.add('bi-clipboard');
-            btn.classList.remove('btn-success');
-            btn.classList.add('btn-outline-secondary');
-        }, 2000);
-    });
-}
-
-// Копировать сгенерированную ссылку
-function copyGeneratedLink() {
-    const link = document.getElementById('generatedLink').value;
-    navigator.clipboard.writeText(link).then(() => {
-        const btn = event.currentTarget;
-        btn.innerHTML = '<i class="bi bi-check"></i> Скопировано!';
-        setTimeout(() => {
-            btn.innerHTML = '<i class="bi bi-clipboard"></i> Копировать';
-        }, 2000);
-    });
-}
-
-// Переключить статус источника
-async function toggleSource(sourceId) {
-    try {
-        const response = await fetch(`/traffic-sources/${sourceId}/toggle`, {
-            method: 'POST'
-        });
-        
-        if (!response.ok) {
-            location.reload();
-        }
-    } catch (error) {
-        alert('Ошибка изменения статуса');
+        alert('Ошибка создания: ' + error.message);
     }
 }
 
@@ -810,14 +347,26 @@ async function testConversion(sourceId) {
     if (!confirm('Отправить тестовую конверсию?')) return;
     
     try {
-        const response = await fetch(`/traffic-sources/${sourceId}/test-conversion`, {
-            method: 'POST'
-        });
+        const result = await makeRequest(`/traffic-sources/${sourceId}/test-conversion`);
         
-        const result = await response.json();
-        alert(result.message || 'Тестовая конверсия отправлена');
+        if (result) {
+            alert(result.message || 'Тестовая конверсия отправлена');
+        }
     } catch (error) {
-        alert('Ошибка отправки тестовой конверсии');
+        alert('Ошибка: ' + error.message);
+    }
+}
+
+// Переключить статус
+async function toggleSource(sourceId) {
+    try {
+        const result = await makeRequest(`/traffic-sources/${sourceId}/toggle`);
+        
+        if (result && result.success) {
+            window.location.reload();
+        }
+    } catch (error) {
+        alert('Ошибка: ' + error.message);
     }
 }
 
@@ -826,36 +375,25 @@ async function deleteSource(sourceId, sourceName) {
     if (!confirm(`Удалить источник "${sourceName}"?`)) return;
     
     try {
-        const response = await fetch(`/traffic-sources/${sourceId}/delete`, {
-            method: 'POST'
-        });
+        const result = await makeRequest(`/traffic-sources/${sourceId}/delete`);
         
-        const result = await response.json();
-        
-        if (result.success) {
-            location.reload();
-        } else if (result.confirm_required) {
-            if (confirm(`Источник имеет ${result.events_count} связанных событий. Удалить вместе со всеми данными?`)) {
-                const forceResponse = await fetch(`/traffic-sources/${sourceId}/force-delete`, {
-                    method: 'POST'
-                });
-                
-                const forceResult = await forceResponse.json();
-                if (forceResult.success) {
-                    location.reload();
-                } else {
-                    alert('Ошибка: ' + forceResult.error);
+        if (result) {
+            if (result.success) {
+                window.location.reload();
+            } else if (result.confirm_required) {
+                if (confirm(`Источник имеет ${result.events_count} связанных событий. Удалить все данные?`)) {
+                    const forceResult = await makeRequest(`/traffic-sources/${sourceId}/force-delete`);
+                    if (forceResult && forceResult.success) {
+                        window.location.reload();
+                    }
                 }
+            } else {
+                alert('Ошибка: ' + result.error);
             }
-        } else {
-            alert('Ошибка: ' + result.error);
         }
     } catch (error) {
         alert('Ошибка удаления: ' + error.message);
     }
 }
-
-// Обработчик изменения имени
-document.getElementById('sourceName').addEventListener('input', checkStep1);
 </script>
 {% endblock %}
