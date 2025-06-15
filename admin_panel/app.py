@@ -399,11 +399,6 @@ def logout():
     return redirect(url_for('login'))
 
 # Заглушки для других страниц
-@app.route('/editor')
-@login_required
-def text_editor():
-    return render_template('editor.html')
-
 @app.route('/broadcast')
 @login_required
 def broadcast():
