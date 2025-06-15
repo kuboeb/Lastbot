@@ -15,6 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 import pytz
 import os
+import requests
 import json
 import io
 from dotenv import load_dotenv
@@ -1232,39 +1233,105 @@ def send_broadcast(broadcast_id):
         if not broadcast:
             return jsonify({'success': False, 'error': 'Рассылка не найдена'})
         
-        # Отправляем задачу в очередь (используем API бота)
+        # Обновляем статус на "отправляется"
+        cur.execute("""
+            UPDATE broadcasts 
+            SET status = 'sending', started_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (broadcast_id,))
+        conn.commit()
+        
+        # Получаем получателей
+        cur.execute("""
+            SELECT br.*, bu.username
+            FROM broadcast_recipients br
+            JOIN bot_users bu ON br.user_id = bu.user_id
+            WHERE br.broadcast_id = %s AND br.status = 'pending'
+        """, (broadcast_id,))
+        recipients = cur.fetchall()
+        
+        # Импортируем необходимые модули для отправки
         import requests
+        import time
         
-        response = requests.post(
-            f"http://localhost:{os.getenv('BOT_API_PORT', 8002)}/api/send_broadcast",
-            json={
-                'broadcast_id': broadcast_id,
-                'api_key': os.getenv('INTERNAL_API_KEY')
-            },
-            timeout=10
-        )
+        bot_token = os.getenv('BOT_TOKEN')
+        api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         
-        if response.status_code == 200:
-            # Обновляем статус
-            cur.execute("""
-                UPDATE broadcasts 
-                SET status = 'sending', started_at = CURRENT_TIMESTAMP
-                WHERE id = %s
-            """, (broadcast_id,))
-            conn.commit()
-            
-            return jsonify({'success': True})
-        else:
-            return jsonify({'success': False, 'error': 'Ошибка отправки'})
-            
+        sent_count = 0
+        error_count = 0
+        
+        # Отправляем сообщения
+        for recipient in recipients:
+            try:
+                # Персонализация сообщения
+                message = broadcast['message']
+                if recipient['username']:
+                    message = message.replace('{username}', f"@{recipient['username']}")
+                
+                # Отправка через Telegram API
+                response = requests.post(api_url, json={
+                    'chat_id': recipient['user_id'],
+                    'text': message,
+                    'parse_mode': 'HTML'
+                }, timeout=10)
+                
+                if response.status_code == 200:
+                    # Обновляем статус получателя
+                    cur.execute("""
+                        UPDATE broadcast_recipients
+                        SET status = 'sent', sent_at = CURRENT_TIMESTAMP
+                        WHERE broadcast_id = %s AND user_id = %s
+                    """, (broadcast_id, recipient['user_id']))
+                    sent_count += 1
+                else:
+                    # Сохраняем ошибку
+                    error_msg = response.json().get('description', 'Unknown error')
+                    cur.execute("""
+                        UPDATE broadcast_recipients
+                        SET status = 'error', error_message = %s
+                        WHERE broadcast_id = %s AND user_id = %s
+                    """, (error_msg, broadcast_id, recipient['user_id']))
+                    error_count += 1
+                
+                # Коммитим каждые 10 сообщений
+                if (sent_count + error_count) % 10 == 0:
+                    conn.commit()
+                
+                # Задержка между сообщениями (30 сообщений в секунду)
+                time.sleep(0.035)
+                
+            except Exception as e:
+                cur.execute("""
+                    UPDATE broadcast_recipients
+                    SET status = 'error', error_message = %s
+                    WHERE broadcast_id = %s AND user_id = %s
+                """, (str(e), broadcast_id, recipient['user_id']))
+                error_count += 1
+        
+        # Обновляем статистику рассылки
+        cur.execute("""
+            UPDATE broadcasts 
+            SET status = 'sent', 
+                completed_at = CURRENT_TIMESTAMP,
+                sent_count = %s,
+                error_count = %s
+            WHERE id = %s
+        """, (sent_count, error_count, broadcast_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True, 
+            'sent': sent_count, 
+            'errors': error_count
+        })
+        
     except Exception as e:
         conn.rollback()
         return jsonify({'success': False, 'error': str(e)})
     finally:
         cur.close()
-        conn.close()
-
-@app.route('/broadcast/<int:broadcast_id>/stats')
+        conn.close()@app.route('/broadcast/<int:broadcast_id>/stats')
 @login_required
 def broadcast_stats(broadcast_id):
     """Статистика рассылки"""
