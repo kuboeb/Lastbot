@@ -8,6 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy import select
 import re
 from datetime import datetime
+from admin_panel.send_to_crm_helper import send_application_to_active_crms
 
 from database import db_manager, Application, BotUser, Referral, UserAction
 from keyboards.keyboards import (
