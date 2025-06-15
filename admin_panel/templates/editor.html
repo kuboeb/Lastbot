@@ -6,6 +6,13 @@
 <div class="container-fluid">
     <h1 class="h3 mb-4">Редактор текстов бота</h1>
     
+    <!-- Описание -->
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i> 
+        Здесь вы можете редактировать все тексты бота. После сохранения изменений используйте команду 
+        <code>/reload_texts</code> в боте для применения изменений без перезапуска.
+    </div>
+    
     <!-- Категории -->
     <ul class="nav nav-tabs mb-4" id="categoryTabs">
         <li class="nav-item">
@@ -24,20 +31,28 @@
     
     <!-- Контент -->
     <div class="tab-content">
+        <!-- Все тексты -->
         <div class="tab-pane fade show active" id="all">
             {% for text in texts %}
             <div class="card mb-3 text-item" data-category="{{ text.category }}">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">{{ text.description }}</h5>
-                        <small class="text-muted">Ключ: {{ text.key }} | Категория: {{ text.category }}</small>
+                        <h5 class="mb-0">{{ text.description or text.key }}</h5>
+                        <small class="text-muted">
+                            Ключ: <code>{{ text.key }}</code> | 
+                            Категория: {{ text.category }}
+                        </small>
                     </div>
-                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                    <button class="btn btn-primary btn-sm edit-text" 
+                            data-id="{{ text.id }}"
+                            data-key="{{ text.key }}"
+                            data-description="{{ text.description or text.key }}"
+                            data-text="{{ text.text }}">
                         <i class="bi bi-pencil"></i> Редактировать
                     </button>
                 </div>
                 <div class="card-body">
-                    <div class="preview" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px;">{{ text.text }}</div>
+                    <div class="preview" style="white-space: pre-wrap; background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">{{ text.text }}</div>
                     {% if text.updated_at %}
                     <small class="text-muted d-block mt-2">
                         Обновлено: {{ text.updated_at|datetime }}
@@ -48,15 +63,20 @@
             {% endfor %}
         </div>
         
+        <!-- Приветствия -->
         <div class="tab-pane fade" id="welcome">
             {% for text in texts if text.category == 'welcome' %}
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">{{ text.description }}</h5>
-                        <small class="text-muted">Ключ: {{ text.key }}</small>
+                        <h5 class="mb-0">{{ text.description or text.key }}</h5>
+                        <small class="text-muted">Ключ: <code>{{ text.key }}</code></small>
                     </div>
-                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                    <button class="btn btn-primary btn-sm edit-text" 
+                            data-id="{{ text.id }}"
+                            data-key="{{ text.key }}"
+                            data-description="{{ text.description or text.key }}"
+                            data-text="{{ text.text }}">
                         <i class="bi bi-pencil"></i> Редактировать
                     </button>
                 </div>
@@ -67,15 +87,20 @@
             {% endfor %}
         </div>
         
+        <!-- Регистрация -->
         <div class="tab-pane fade" id="registration">
             {% for text in texts if text.category == 'registration' %}
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">{{ text.description }}</h5>
-                        <small class="text-muted">Ключ: {{ text.key }}</small>
+                        <h5 class="mb-0">{{ text.description or text.key }}</h5>
+                        <small class="text-muted">Ключ: <code>{{ text.key }}</code></small>
                     </div>
-                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                    <button class="btn btn-primary btn-sm edit-text" 
+                            data-id="{{ text.id }}"
+                            data-key="{{ text.key }}"
+                            data-description="{{ text.description or text.key }}"
+                            data-text="{{ text.text }}">
                         <i class="bi bi-pencil"></i> Редактировать
                     </button>
                 </div>
@@ -86,15 +111,20 @@
             {% endfor %}
         </div>
         
+        <!-- Информация -->
         <div class="tab-pane fade" id="info">
             {% for text in texts if text.category == 'info' %}
             <div class="card mb-3">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <h5 class="mb-0">{{ text.description }}</h5>
-                        <small class="text-muted">Ключ: {{ text.key }}</small>
+                        <h5 class="mb-0">{{ text.description or text.key }}</h5>
+                        <small class="text-muted">Ключ: <code>{{ text.key }}</code></small>
                     </div>
-                    <button class="btn btn-primary btn-sm edit-text" data-id="{{ text.id }}">
+                    <button class="btn btn-primary btn-sm edit-text" 
+                            data-id="{{ text.id }}"
+                            data-key="{{ text.key }}"
+                            data-description="{{ text.description or text.key }}"
+                            data-text="{{ text.text }}">
                         <i class="bi bi-pencil"></i> Редактировать
                     </button>
                 </div>
@@ -123,25 +153,47 @@
                         <input type="text" class="form-control" id="textDescription" readonly>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Ключ</label>
+                        <input type="text" class="form-control" id="textKey" readonly>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Текст сообщения</label>
-                        <textarea class="form-control" id="textContent" name="text" rows="10" 
-                                  placeholder="Введите текст сообщения..."></textarea>
+                        <textarea class="form-control" id="textContent" name="text" rows="12" 
+                                  placeholder="Введите текст сообщения..."
+                                  style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;"></textarea>
                         <small class="text-muted">
-                            Доступные переменные: {referral_link}, {referrals_count}, {name}, {phone}, {time}
+                            Доступные переменные: {referral_link}, {referrals_count}, {name}, {phone}, {time}, {country}
                         </small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Предпросмотр</label>
                         <div id="preview" style="white-space: pre-wrap; background: #f8f9fa; 
-                             padding: 15px; border-radius: 5px; min-height: 100px;">
+                             padding: 15px; border-radius: 5px; min-height: 100px;
+                             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" id="saveText">Сохранить</button>
+                <button type="button" class="btn btn-primary" id="saveText">
+                    <i class="bi bi-save"></i> Сохранить
+                </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Уведомление об успешном сохранении -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+    <div id="successToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="bi bi-check-circle-fill text-success me-2"></i>
+            <strong class="me-auto">Успешно</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+        </div>
+        <div class="toast-body">
+            Текст успешно сохранен!
         </div>
     </div>
 </div>
@@ -149,27 +201,22 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    const successToast = new bootstrap.Toast(document.getElementById('successToast'));
     let currentTextId = null;
     
     // Обработчик кнопок редактирования
     document.querySelectorAll('.edit-text').forEach(button => {
-        button.addEventListener('click', async function() {
+        button.addEventListener('click', function() {
             currentTextId = this.dataset.id;
             
-            // Загружаем данные текста
-            try {
-                const response = await fetch(`/admin/texts/${currentTextId}`);
-                const data = await response.json();
-                
-                document.getElementById('textId').value = data.id;
-                document.getElementById('textDescription').value = data.description;
-                document.getElementById('textContent').value = data.text;
-                updatePreview();
-                
-                editModal.show();
-            } catch (error) {
-                alert('Ошибка загрузки текста: ' + error.message);
-            }
+            // Заполняем форму данными из атрибутов
+            document.getElementById('textId').value = this.dataset.id;
+            document.getElementById('textDescription').value = this.dataset.description;
+            document.getElementById('textKey').value = this.dataset.key;
+            document.getElementById('textContent').value = this.dataset.text;
+            
+            updatePreview();
+            editModal.show();
         });
     });
     
@@ -184,7 +231,8 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/{referrals_count}/g, '5')
             .replace(/{name}/g, 'Иван Иванов')
             .replace(/{phone}/g, '+49123456789')
-            .replace(/{time}/g, '12:00 - 15:00');
+            .replace(/{time}/g, '12:00 - 15:00')
+            .replace(/{country}/g, 'Германия');
         
         preview.textContent = previewText;
     }
@@ -194,21 +242,55 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Сохранение текста
     document.getElementById('saveText').addEventListener('click', async function() {
-        const formData = new FormData(document.getElementById('editForm'));
+        const textContent = document.getElementById('textContent').value;
+        
+        if (!textContent.trim()) {
+            alert('Текст не может быть пустым');
+            return;
+        }
+        
+        // Показываем индикатор загрузки
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Сохранение...';
         
         try {
             const response = await fetch(`/admin/texts/${currentTextId}/update`, {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    text: textContent
+                })
             });
             
             if (response.ok) {
-                location.reload();
+                editModal.hide();
+                successToast.show();
+                
+                // Обновляем текст на странице
+                const textCard = document.querySelector(`[data-id="${currentTextId}"]`).closest('.card');
+                const preview = textCard.querySelector('.preview');
+                preview.textContent = textContent;
+                
+                // Обновляем data-атрибут кнопки
+                const editBtn = textCard.querySelector('.edit-text');
+                editBtn.dataset.text = textContent;
+                
+                // Перезагружаем страницу через 1.5 секунды
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
             } else {
-                alert('Ошибка при сохранении');
+                const error = await response.json();
+                alert('Ошибка при сохранении: ' + (error.error || 'Неизвестная ошибка'));
             }
         } catch (error) {
             alert('Ошибка: ' + error.message);
+        } finally {
+            // Восстанавливаем кнопку
+            this.disabled = false;
+            this.innerHTML = '<i class="bi bi-save"></i> Сохранить';
         }
     });
 });

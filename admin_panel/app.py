@@ -687,13 +687,22 @@ def get_text(text_id):
     conn.close()
     
     if text:
-        return jsonify(dict(text))
+        # Конвертируем в обычный dict для JSON
+        text_dict = {
+            'id': text['id'],
+            'key': text['key'],
+            'category': text['category'],
+            'description': text['description'],
+            'text': text['text']
+        }
+        return jsonify(text_dict)
     return jsonify({'error': 'Text not found'}), 404
 
 @app.route('/admin/texts/<int:text_id>/update', methods=['POST'])
 @login_required
 def update_text(text_id):
-    text_content = request.form.get('text')
+    data = request.get_json()
+    text_content = data.get('text') if data else None
     
     if not text_content:
         return jsonify({'error': 'Text is required'}), 400
