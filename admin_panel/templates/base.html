@@ -130,13 +130,13 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'text_editor' %}active{% endif %}" 
-                       href="#">
+                       href="{{ url_for('text_editor') }}">
                         <i class="fas fa-edit"></i> Редактор текстов
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if request.endpoint == 'traffic_sources' %}active{% endif %}" 
-                       href="#">
+                       href="{{ url_for('text_editor') }}">
                         <i class="fas fa-chart-line"></i> Источники трафика
                     </a>
                 </li>
@@ -149,7 +149,7 @@
                     </span>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="#" id="toggle-bot">
+                    <a class="nav-link" href="{{ url_for('text_editor') }}" id="toggle-bot">
                         <i class="fas fa-power-off"></i> Остановить бота
                     </a>
                 </li>
