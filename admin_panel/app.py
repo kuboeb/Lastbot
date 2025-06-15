@@ -1547,7 +1547,6 @@ def test_integration(integration_id):
             WHERE id = %s
         """, (integration_id,))
         row = cur.fetchone()
-        
         if not row:
             return jsonify({'success': False, 'error': 'Интеграция не найдена'})
         
@@ -1726,6 +1725,7 @@ def integrations():
 def create_integration():
     """Создание новой интеграции"""
     if request.method == 'POST':
+        app.logger.info(f"Creating integration - Form data: {dict(request.form)}")
         try:
             name = request.form.get('name')
             integration_type = request.form.get('type')
