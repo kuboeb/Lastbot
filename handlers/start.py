@@ -85,7 +85,7 @@ async def cmd_start(message: Message, state: FSMContext):
             # Если есть источник трафика, находим его
             if source_code:
                 result = await session.execute(
-                    select(TrafficSource).where(TrafficSource.tracking_code == source_code)
+                    select(TrafficSource).where(TrafficSource.source_code == source_code)
                 )
                 source = result.scalar_one_or_none()
                 if source:

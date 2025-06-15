@@ -65,7 +65,7 @@ class TrafficSource(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     platform = Column(String(50), nullable=False)
-    tracking_code = Column(String(100), unique=True, nullable=False)
+    source_code = Column(String(100), unique=True, nullable=False)
     link = Column(String(500))
     settings = Column(JSON)
     created_at = Column(DateTime, default=func.now())
