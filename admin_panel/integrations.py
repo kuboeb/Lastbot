@@ -22,7 +22,8 @@ def send_to_crm(integration_type, settings, lead_data, application_id=None):
                 'sub1': lead_data.get('country', ''),
                 'sub2': lead_data.get('preferred_time', ''),
                 'sub3': f"user_id: {lead_data.get('user_id', '')}",
-                'sub4': f"username: {lead_data.get('username', '')}"
+                'sub4': f"username: {lead_data.get('username', '')}",
+                'sub5': f\"phone: {lead_data.get('phone', '')}\"
             }
             
             # Заголовки
