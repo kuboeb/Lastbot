@@ -48,7 +48,7 @@ async def cmd_start(message: Message, state: FSMContext):
     
     async with db_manager.get_session() as session:
         user = (await session.execute(select(BotUser).where(BotUser.user_id == user_id))).scalar_one_or_none()
-        user = await session.get(BotUser, user_id)
+        user = (await session.execute(select(BotUser).where(BotUser.user_id == user_id))).scalar_one_or_none()
         
         if not user:
             # Создаем нового пользователя
@@ -107,7 +107,7 @@ async def cmd_start(message: Message, state: FSMContext):
         else:
             # Новый пользователь
                 referrer = (await session.execute(select(BotUser).where(BotUser.user_id == referrer_id))).scalar_one_or_none()
-                referrer = await session.get(BotUser, referrer_id)
+                referrer = (await session.execute(select(BotUser).where(BotUser.user_id == referrer_id))).scalar_one_or_none()
                 referrer_name = referrer.username or "пользователя"
                 await message.answer(
                     f"🎁 Вы пришли по приглашению от {referrer_name}!\n"

@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
@@ -228,7 +229,7 @@ async def confirm_registration(message: Message, state: FSMContext):
     
     async with db_manager.get_session() as session:
         # Получаем пользователя
-        user = await session.get(BotUser, user_id)
+        user = (await session.execute(select(BotUser).where(BotUser.user_id == user_id))).scalar_one_or_none()
         
         # Создаем заявку
         application = Application(

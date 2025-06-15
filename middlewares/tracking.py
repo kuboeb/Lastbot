@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from typing import Any, Awaitable, Callable, Dict
 from aiogram import BaseMiddleware
 from aiogram.types import Message
@@ -22,7 +23,7 @@ class TrackingMiddleware(BaseMiddleware):
         try:
             async with db_manager.get_session() as session:
                 # Обновляем последнюю активность пользователя
-                user = await session.get(BotUser, user_id)
+                user = (await session.execute(select(BotUser).where(BotUser.user_id == user_id))).scalar_one_or_none()
                 if user:
                     user.last_activity = datetime.now()
                     
