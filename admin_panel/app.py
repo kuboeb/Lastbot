@@ -48,10 +48,70 @@ def load_user(user_id):
     cur = conn.cursor()
     cur.execute("SELECT id, username FROM admins WHERE id = %s", (int(user_id),))
     admin_data = cur.fetchone()
+        # Получаем реальные данные воронки
+    funnel_stats = {}
+    
+    # Начали регистрацию
+    cur.execute('''
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'begin_registration' AND created_at >= %s
+    ''', (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['start'] = result['count'] if result else 0
+    
+    # Ввели имя
+    cur.execute('''
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_name' AND created_at >= %s
+    ''', (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['begin_registration'] = result['count'] if result else 0
+    
+    # Указали страну
+    cur.execute('''
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_country' AND created_at >= %s
+    ''', (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_country'] = result['count'] if result else 0
+    
+    # Ввели телефон
+    cur.execute('''
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_phone' AND created_at >= %s
+    ''', (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_phone'] = result['count'] if result else 0
+    
+    # Выбрали время
+    cur.execute('''
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_time' AND created_at >= %s
+    ''', (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_time'] = result['count'] if result else 0
+    
+    # Завершили регистрацию
+    cur.execute('''
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'completed' AND created_at >= %s
+    ''', (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['complete_registration'] = result['count'] if result else 0
+    
     cur.close()
     conn.close()
     
-    if admin_data:
+    return render_template('dashboard.html',
+        today_count=today_count,
+        week_count=week_count,
+        month_count=month_count,
+        recent_applications=recent_applications,
+        conversion_rate=conversion_rate,
+        chart_labels=chart_labels,
+        chart_data=chart_data,
+        bot_status={'enabled': True, 'uptime': '2д 14ч 35м'},
+        funnel_stats=funnel_statsif admin_data:
         return Admin(admin_data['id'], admin_data['username'])
     return None
 
@@ -151,7 +211,7 @@ def dashboard():
         chart_labels=chart_labels,
         chart_data=chart_data,
         bot_status={'enabled': True, 'uptime': '2д 14ч 35м'},
-        funnel_stats={'start': 0, 'begin_registration': 0, 'entered_country': 0, 'entered_phone': 0, 'entered_time': 0, 'complete_registration': 0}
+
     )
 
 @app.route('/applications')
