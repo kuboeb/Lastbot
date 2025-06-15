@@ -1448,61 +1448,12 @@ def debug_session():
 def integrations():
     """Страница управления интеграциями"""
     print("DEBUG: Entering integrations function")
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
     try:
-        cur.execute("""
-            SELECT id, name, type, settings, is_active, created_at
-            FROM integrations
-            ORDER BY created_at DESC
-        """)
-        
-        integrations_list = []
-        for row in cur.fetchall():
-            integration = {
-                'id': row[0],
-                'name': row[1],
-                'type': row[2],
-                'settings': row[3],
-                'is_active': row[4],
-                'created_at': row[5]
-            }
-            
-            # Скрываем API ключ
-            if 'api_key' in integration['settings']:
-                integration['settings']['api_key'] = integration['settings']['api_key'][:10] + '...'
-            
-            # Статистика
-            cur.execute("""
-                SELECT 
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN status = 'success' THEN 1 END) as success,
-                    COUNT(CASE WHEN status = 'error' THEN 1 END) as error,
-                    MAX(created_at) as last_send
-                FROM integration_logs
-                WHERE integration_id = %s
-            """, (integration['id'],))
-            
-            stats = cur.fetchone()
-            integration['stats'] = {
-                'total': stats[0],
-                'success': stats[1],
-                'error': stats[2],
-                'last_send': stats[3]
-            }
-            
-            integrations_list.append(integration)
-        
-        return render_template('integrations.html', integrations=integrations_list)
-        
+        # Простой тест - вернем строку
+        return "<h1>Integrations Page Works!</h1><p>User is authenticated</p>"
     except Exception as e:
         print(f"ERROR in integrations: {e}")
-        flash(f'Ошибка: {str(e)}', 'danger')
-        return redirect(url_for('dashboard'))
-    finally:
-        cur.close()
-        conn.close()
+        return f"Error: {e}"
 
 
 @app.route('/integrations/create', methods=['GET', 'POST'])
