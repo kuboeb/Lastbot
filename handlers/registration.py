@@ -22,6 +22,9 @@ from keyboards.keyboards import (
 from utils import messages
 from utils.db_texts import get_text
 from utils.datetime_utils import get_current_datetime
+import logging
+
+logger = logging.getLogger(__name__)
 from config import config
 
 router = Router(name="registration")
@@ -246,6 +249,24 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         )
         
         session.add(application)
+        
+        # Получаем ID созданной заявки после коммита
+        await session.commit()
+        await session.refresh(application)
+        application_id = application.id
+        
+        # Отправляем в CRM асинхронно
+        try:
+            import asyncio
+            from admin_panel.send_to_crm_helper import send_application_to_active_crms
+            
+            # Запускаем в отдельной задаче чтобы не блокировать бота
+            asyncio.create_task(asyncio.to_thread(send_application_to_active_crms, application_id))
+            logger.info(f"Запущена отправка заявки {application_id} в CRM")
+        except Exception as e:
+            logger.error(f"Ошибка при запуске отправки в CRM: {e}")
+        
+        # Продолжаем обычный процесс
         
         # Сохраняем действие
         await save_user_action(session, user_id, 'completed')
