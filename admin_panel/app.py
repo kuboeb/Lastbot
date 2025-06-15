@@ -1869,15 +1869,25 @@ def test_integration(integration_id):
         settings = row['settings'] if row['settings'] else {}
         
         # Тестовые данные
-        test_lead = {
-            'first_name': 'Тест',
-            'last_name': 'Тестов',
-            'phone': '+79001234567',
-            'email': 'test@example.com',
-            'country': 'Россия',
-            'user_id': '123456789',
-            'username': 'testuser'
-        }
+        # Получаем данные из запроса или используем дефолтные
+        if request.is_json and request.json:
+            test_lead = {
+                'first_name': request.json.get('first_name', 'Тест'),
+                'last_name': request.json.get('last_name', 'Тестов'),
+                'phone': request.json.get('phone', '+79001234567'),
+                'country': request.json.get('country', 'Россия'),
+                'user_id': request.json.get('user_id', '123456789'),
+                'username': request.json.get('username', 'testuser')
+            }
+        else:
+            test_lead = {
+                'first_name': 'Тест',
+                'last_name': 'Тестов',
+                'phone': '+79001234567',
+                'country': 'Россия',
+                'user_id': '123456789',
+                'username': 'testuser'
+            }
         
         # Импортируем функцию отправки
         try:

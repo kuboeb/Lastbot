@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 from datetime import datetime
 
@@ -30,6 +31,8 @@ def transliterate(text):
 
 def send_to_crm(integration_type, settings, lead_data, application_id=None):
     """Отправка лида в CRM"""
+    print(f"DEBUG: Received lead_data: {lead_data}")
+    print(f"DEBUG: Email in lead_data: {lead_data.get('email', 'NOT PROVIDED')}")
     try:
         if integration_type == 'alphacrm':
             # Формируем URL

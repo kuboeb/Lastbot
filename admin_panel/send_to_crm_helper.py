@@ -5,6 +5,7 @@ import os
 import sys
 sys.path.append('/home/Lastbot/admin_panel')
 from integrations import send_to_crm
+from integrations import transliterate
 
 def send_application_to_active_crms(application_id):
     """Отправить заявку во все активные CRM"""
@@ -42,7 +43,7 @@ def send_application_to_active_crms(application_id):
             'preferred_time': app_data['preferred_time'],
             'user_id': str(app_data['user_id']),
             'username': app_data['username'] or '',
-            'email': f"{name_parts[0].lower().replace(' ', '')}{str(app_data['user_id'])[-5:]}@gmail.com" 
+            'email': f"{transliterate(name_parts[0])}{str(app_data['user_id'])[-5:]}@gmail.com" 
         }
         
         print(f"Sending lead data: {lead_data}")
