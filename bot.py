@@ -107,3 +107,11 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Fatal error: {e}")
         sys.exit(1)
+
+# Регистрация админских команд
+try:
+    from admin_commands import register_admin_handlers
+    register_admin_handlers(dp)
+    logger.info("Admin commands registered")
+except Exception as e:
+    logger.error(f"Failed to register admin commands: {e}")
