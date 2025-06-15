@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import re
 
 from config import config
-from database import db_manager, Operator, BotUser, Application, OperatorMessage
+from database import db_manager, Operator, BotUser, Application
 
 # Настройка логирования
 logging.basicConfig(
