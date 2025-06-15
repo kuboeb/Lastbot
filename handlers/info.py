@@ -240,32 +240,23 @@ async def show_my_referrals_callback(callback: CallbackQuery):
             bot_info = await callback.bot.get_me()
             referral_link = f"https://t.me/{bot_info.username}?start=ref_{user_id}"
             
-            text = f"У вас пока нет рефералов 😔
-
-"
-            text += f"Поделитесь вашей ссылкой с друзьями:
-"
-            text += f"{referral_link}
-
-"
-            text += f"Когда они пройдут 50% курса, вы оба получите по 50€!"
+            text = "У вас пока нет рефералов 😔\n\n"
+            text += "Поделитесь вашей ссылкой с друзьями:\n"
+            text += f"{referral_link}\n\n"
+            text += "Когда они пройдут 50% курса, вы оба получите по 50€!"
         else:
-            text = f"📊 Ваши рефералы ({len(referrals)}):
-
-"
+            text = f"📊 Ваши рефералы ({len(referrals)}):\n\n"
             
             for i, ref in enumerate(referrals, 1):
                 status_emoji = "✅" if ref.status == 'completed' else "⏳"
-                text += f"{i}. {status_emoji} Реферал #{ref.referred_id}
-"
+                text += f"{i}. {status_emoji} Реферал #{ref.referred_id}\n"
             
-            text += f"
-✅ Завершили курс: {sum(1 for r in referrals if r.status == 'completed')}"
-            text += f"
-⏳ В процессе: {sum(1 for r in referrals if r.status != 'completed')}"
+            text += f"\n✅ Завершили курс: {sum(1 for r in referrals if r.status == 'completed')}"
+            text += f"\n⏳ В процессе: {sum(1 for r in referrals if r.status != 'completed')}"
         
         await callback.message.edit_text(text, reply_markup=get_back_button())
         await callback.answer()
+
 
 @router.message(F.text == messages.BTN_REFERRAL)
 async def show_referral_msg(message: Message):
