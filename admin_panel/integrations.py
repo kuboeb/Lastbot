@@ -1,7 +1,6 @@
 import json
 import requests
 from datetime import datetime
-from flask import jsonify
 
 def send_to_crm(integration_type, settings, lead_data, application_id=None):
     """Отправка лида в CRM"""
@@ -20,7 +19,6 @@ def send_to_crm(integration_type, settings, lead_data, application_id=None):
                 'email': lead_data.get('email', ''),
                 'ip': lead_data.get('ip', '127.0.0.1'),
                 'source': settings.get('source', 'telegram_bot'),
-                # Дополнительные параметры
                 'sub1': lead_data.get('country', ''),
                 'sub2': lead_data.get('preferred_time', ''),
                 'sub3': f"user_id: {lead_data.get('user_id', '')}",
@@ -51,40 +49,3 @@ def send_to_crm(integration_type, settings, lead_data, application_id=None):
                 
     except Exception as e:
         return {'success': False, 'error': str(e)}
-
-
-def send_application_to_crm(application_data, integrations):
-    """Отправить заявку во все активные CRM"""
-    results = []
-    
-    # Формируем данные для CRM
-    full_name = application_data.get('full_name', '')
-    name_parts = full_name.split(' ', 1)
-    
-    lead_data = {
-        'first_name': name_parts[0] if name_parts else '',
-        'last_name': name_parts[1] if len(name_parts) > 1 else '',
-        'phone': application_data.get('phone', ''),
-        'country': application_data.get('country', ''),
-        'preferred_time': application_data.get('preferred_time', ''),
-        'user_id': application_data.get('user_id', ''),
-        'username': application_data.get('username', ''),
-        'email': ''  # Если нет email, оставляем пустым
-    }
-    
-    # Отправляем в каждую активную интеграцию
-    for integration in integrations:
-        if integration['is_active']:
-            result = send_to_crm(
-                integration['type'],
-                integration['settings'],
-                lead_data,
-                application_data.get('id')
-            )
-            results.append({
-                'integration_id': integration['id'],
-                'integration_name': integration['name'],
-                'result': result
-            })
-    
-    return results

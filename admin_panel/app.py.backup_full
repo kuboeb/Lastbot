@@ -13,6 +13,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
+from integrations import send_to_crm, send_application_to_crm
 import pytz
 import os
 import requests
@@ -798,6 +799,10 @@ def traffic_sources():
             ORDER BY ts.created_at DESC
         """)
         sources = cur.fetchall()
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         # Информация о платформах
         platforms = {
@@ -849,6 +854,10 @@ def create_traffic_source():
             platform = data['platform']
             random_code = ''.join(random.choices(string.digits, k=5))
             source_code = f"{platform[:2]}_{random_code}"
+        
+        except Exception as e:
+        
+            print(f'Error: {e}')
             
             # Генерируем ссылку
             bot_username = os.getenv('BOT_USERNAME', 'cryplace_bot')
@@ -891,6 +900,10 @@ def traffic_source_details(source_id):
         # Получаем источник
         cur.execute("SELECT * FROM traffic_sources WHERE id = %s", (source_id,))
         source = cur.fetchone()
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         if not source:
             flash('Источник не найден', 'danger')
@@ -964,6 +977,10 @@ def test_conversion(source_id):
         # Получаем источник
         cur.execute("SELECT * FROM traffic_sources WHERE id = %s", (source_id,))
         source = cur.fetchone()
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         if not source:
             return jsonify({'success': False, 'error': 'Источник не найден'})
@@ -1008,6 +1025,10 @@ def toggle_traffic_source(source_id):
             WHERE id = %s
             RETURNING is_active
         """, (source_id,))
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         result = cur.fetchone()
         conn.commit()
@@ -1042,6 +1063,10 @@ def delete_traffic_source(source_id):
             SELECT COUNT(*) as count FROM tracking_events WHERE source_id = %s
         """, (source_id,))
         events_count = cur.fetchone()['count']
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         if events_count > 0:
             # Если есть события, предупреждаем
@@ -1081,6 +1106,10 @@ def force_delete_traffic_source(source_id):
         cur.execute("UPDATE applications SET source_id = NULL WHERE source_id = %s", (source_id,))
         cur.execute("UPDATE bot_users SET source_id = NULL WHERE source_id = %s", (source_id,))
         cur.execute("DELETE FROM traffic_sources WHERE id = %s", (source_id,))
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         conn.commit()
         
@@ -1118,6 +1147,10 @@ def broadcast():
             WHERE is_blocked = FALSE
         """)
         stats = cur.fetchone()
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         # Получаем историю рассылок
         cur.execute("""
@@ -1155,6 +1188,10 @@ def create_broadcast():
                 WHERE is_blocked = FALSE
             """
             params = []
+        
+        except Exception as e:
+        
+            print(f'Error: {e}')
             
             if filters.get('has_application') == 'no':
                 query += " AND has_application = FALSE"
@@ -1248,7 +1285,9 @@ def create_broadcast():
             cur.close()
             conn.close()
     
-    return render_template('create_broadcast.html')@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
+    return render_template('create_broadcast.html')
+
+@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
 @login_required
 def send_broadcast(broadcast_id):
     """Запуск рассылки"""
@@ -1259,6 +1298,10 @@ def send_broadcast(broadcast_id):
         # Получаем данные рассылки
         cur.execute("SELECT * FROM broadcasts WHERE id = %s", (broadcast_id,))
         broadcast = cur.fetchone()
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         if not broadcast:
             return jsonify({'success': False, 'error': 'Рассылка не найдена'})
@@ -1295,6 +1338,8 @@ def send_broadcast(broadcast_id):
             try:
                 # Персонализация сообщения
                 message = broadcast['message']
+            except Exception as e:
+                print(f'Error: {e}')
                 if recipient['username']:
                     message = message.replace('{username}', f"@{recipient['username']}")
                 
@@ -1374,6 +1419,10 @@ def broadcast_stats(broadcast_id):
         # Получаем данные рассылки
         cur.execute("SELECT * FROM broadcasts WHERE id = %s", (broadcast_id,))
         broadcast = cur.fetchone()
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
         
         if not broadcast:
             flash('Рассылка не найдена', 'danger')
@@ -1414,29 +1463,22 @@ def broadcast_stats(broadcast_id):
         cur.close()
         conn.close()
 
-@app.route('/test')
-def test():
-    return "Test works!"
 
 
-
-
-
-@app.route('/integrations')
-@login_required
 def integrations():
     """Страница управления интеграциями"""
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
+        # Получаем все интеграции
         cur.execute("""
             SELECT id, name, type, settings, is_active, created_at
             FROM integrations
             ORDER BY created_at DESC
         """)
         
-        integrations_list = []
+        integrations = []
         for row in cur.fetchall():
             integration = {
                 'id': row[0],
@@ -1447,11 +1489,11 @@ def integrations():
                 'created_at': row[5]
             }
             
-            # Скрываем API ключ
+            # Скрываем чувствительные данные
             if 'api_key' in integration['settings']:
                 integration['settings']['api_key'] = integration['settings']['api_key'][:10] + '...'
             
-            # Статистика
+            # Получаем статистику
             cur.execute("""
                 SELECT 
                     COUNT(*) as total,
@@ -1470,9 +1512,9 @@ def integrations():
                 'last_send': stats[3]
             }
             
-            integrations_list.append(integration)
+            integrations.append(integration)
         
-        return render_template('integrations.html', integrations=integrations_list)
+        return render_template('integrations.html', integrations=integrations)
         
     except Exception as e:
         flash(f'Ошибка: {str(e)}', 'danger')
@@ -1480,7 +1522,6 @@ def integrations():
     finally:
         cur.close()
         conn.close()
-
 
 
 @app.route('/integrations/create', methods=['GET', 'POST'])
@@ -1512,18 +1553,17 @@ def create_integration():
             """, (name, integration_type, json.dumps(settings)))
             
             conn.commit()
-            flash(f'Интеграция "{name}" создана!', 'success')
+            flash(f'Интеграция "{name}" создана успешно!', 'success')
             return redirect(url_for('integrations'))
             
         except Exception as e:
             conn.rollback()
-            flash(f'Ошибка: {str(e)}', 'danger')
+            flash(f'Ошибка создания интеграции: {str(e)}', 'danger')
         finally:
             cur.close()
             conn.close()
     
     return render_template('create_integration.html')
-
 
 
 @app.route('/integrations/<int:integration_id>/test', methods=['POST'])
@@ -1534,8 +1574,9 @@ def test_integration(integration_id):
     cur = conn.cursor()
     
     try:
+        # Получаем интеграцию
         cur.execute("""
-            SELECT id, type, settings 
+            SELECT id, name, type, settings 
             FROM integrations 
             WHERE id = %s
         """, (integration_id,))
@@ -1543,6 +1584,13 @@ def test_integration(integration_id):
         
         if not row:
             return jsonify({'success': False, 'error': 'Интеграция не найдена'})
+        
+        integration = {
+            'id': row[0],
+            'name': row[1],
+            'type': row[2],
+            'settings': row[3]
+        }
         
         # Тестовые данные
         test_data = {
@@ -1555,16 +1603,17 @@ def test_integration(integration_id):
             'username': 'testuser'
         }
         
-        # Отправляем
-        result = send_to_crm(row[1], row[2], test_data)
+        # Отправляем тестовый лид
+        result = send_to_crm(integration['type'], integration['settings'], test_data)
         
-        # Логируем
+        # Логируем результат
         cur.execute("""
             INSERT INTO integration_logs 
             (integration_id, application_id, status, request_data, response_data, error_message)
-            VALUES (%s, NULL, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """, (
             integration_id,
+            None,  # Нет application_id для теста
             'success' if result.get('success') else 'error',
             json.dumps(test_data),
             json.dumps(result.get('response', {})),
@@ -1579,7 +1628,6 @@ def test_integration(integration_id):
     finally:
         cur.close()
         conn.close()
-
 
 
 @app.route('/integrations/<int:integration_id>/toggle', methods=['POST'])
@@ -1607,7 +1655,6 @@ def toggle_integration(integration_id):
         conn.close()
 
 
-
 @app.route('/integrations/<int:integration_id>/delete', methods=['POST'])
 @login_required
 def delete_integration(integration_id):
@@ -1624,14 +1671,247 @@ def delete_integration(integration_id):
         
     except Exception as e:
         conn.rollback()
-        flash(f'Ошибка: {str(e)}', 'danger')
+        flash(f'Ошибка удаления: {str(e)}', 'danger')
         return redirect(url_for('integrations'))
     finally:
         cur.close()
         conn.close()
 
 
+# ===== ИНТЕГРАЦИИ С CRM =====
+
+@app.route('/integrations')
+@login_required
+def integrations():
+    """Страница управления интеграциями"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем все интеграции
+        cur.execute("""
+            SELECT 
+                i.*,
+                COUNT(DISTINCT il.id) as total_sends,
+                COUNT(DISTINCT CASE WHEN il.status = 'success' THEN il.id END) as success_sends,
+                COUNT(DISTINCT CASE WHEN il.status = 'error' THEN il.id END) as error_sends,
+                MAX(il.created_at) as last_sync
+            FROM integrations i
+            LEFT JOIN integration_logs il ON i.id = il.integration_id
+            GROUP BY i.id
+            ORDER BY i.created_at DESC
+        """)
+        integrations = cur.fetchall()
+    
+    except Exception as e:
+    
+        print(f'Error: {e}')
+        
+        # Информация о типах CRM
+        crm_types = {
+            'alphacrm': {'name': 'AlphaCRM', 'icon': 'database'},
+            'bitrix24': {'name': 'Bitrix24', 'icon': 'building'},
+            'amocrm': {'name': 'amoCRM', 'icon': 'chart-line'},
+            'custom': {'name': 'Custom API', 'icon': 'plug'},
+            'mock': {'name': 'Test/Demo', 'icon': 'bug'}
+        }
+        
+        return render_template('integrations.html', 
+                             integrations=integrations,
+                             crm_types=crm_types)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+    finally:
+        cur.close()
+        conn.close()
+
+def send_to_crm(integration, lead_data, application_id):
+    """Отправка лида в CRM"""
+    
+    print(f"=== SENDING TO CRM ===")
+    print(f"Integration type: {integration['type']}")
+    print(f"Settings: {integration['settings']}")
+    print(f"Lead data: {lead_data}")
+    
+    import requests
+    
+    settings = integration['settings']
+    crm_type = integration['type']
+    
+    try:
+        if crm_type == 'alphacrm':
+            # AlphaCRM API v2
+            domain = settings.get('domain', 'api.alphacrm.cc')
+            
+            # Убираем протокол если есть
+            if domain.startswith('http://') or domain.startswith('https://'):
+                domain = domain.replace('http://', '').replace('https://', '')
+            
+            url = f"https://{domain}/api/v2/leads"
+            
+            print(f"AlphaCRM URL: {url}")
+            
+            # Разделяем имя на first_name и last_name
+            name_parts = lead_data.get('name', '').split(' ', 1)
+            first_name = name_parts[0] if name_parts else 'Не указано'
+            last_name = name_parts[1] if len(name_parts) > 1 else ''
+            
+            # Подготовка данных согласно документации
+            payload = {
+                'aff_id': settings.get('affiliate_id', settings.get('aff_id', '1')),
+                'first_name': first_name,
+                'last_name': last_name,
+                'phone': lead_data.get('phone', ''),
+                'email': lead_data.get('email', ''),
+                'ip': lead_data.get('ip', '127.0.0.1'),
+                'source': settings.get('source', 'telegram_bot'),
+                'sub1': lead_data.get('country', ''),
+                'sub2': lead_data.get('preferred_time', ''),
+                'sub3': f"user_id: {lead_data.get('user_id', '')}",
+                'sub4': f"username: {lead_data.get('username', '')}",
+                'sub5': settings.get('tag', 'telegram')
+            }
+            
+            # Убираем пустые поля
+            payload = {k: v for k, v in payload.items() if v}
+            
+            print(f"Payload: {payload}")
+            
+            # Заголовки
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+            
+            # Если есть API ключ, добавляем в заголовки
+            if settings.get('api_key'):
+                headers['Authorization'] = f"Bearer {settings['api_key']}"
+            
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
+            
+            print(f"Response status: {response.status_code}")
+            print(f"Response text: {response.text[:500]}")
+            
+            response_data = {}
+            try:
+                response_data = response.json() if response.text else {}
+            except:
+                response_data = {'raw': response.text}
+            
+            # Логируем
+            if application_id:
+                log_integration_send(
+                    integration['id'], 
+                    application_id,
+                    'success' if response.status_code in [200, 201] else 'error',
+                    payload,
+                    response_data,
+                    None if response.status_code in [200, 201] else response.text
+                )
+            
+            return {
+                'success': response.status_code in [200, 201],
+                'response': response_data,
+                'message': response_data.get('message', 'Лид отправлен' if response.status_code in [200, 201] else f'Ошибка: {response.status_code}')
+            }
+            
+        elif crm_type == 'mock':
+            # Мок интеграция для тестирования
+            return {
+                'success': True,
+                'response': {'status': 'ok', 'lead_id': '12345'},
+                'message': 'Тестовая отправка выполнена успешно (это демо-режим)'
+            }
+            
+        elif crm_type == 'custom':
+            # Кастомная интеграция
+            url = settings['url']
+            method = settings.get('method', 'POST')
+            headers = settings.get('headers', {})
+            
+            # Маппинг полей
+            field_mapping = integration.get('field_mapping', {})
+            payload = {}
+            
+            for bot_field, crm_field in field_mapping.items():
+                if bot_field in lead_data:
+                    payload[crm_field] = lead_data[bot_field]
+            
+            if method == 'POST':
+                response = requests.post(url, json=payload, headers=headers, timeout=30)
+            else:
+                response = requests.get(url, params=payload, headers=headers, timeout=30)
+            
+            return {
+                'success': response.status_code in [200, 201],
+                'response': response.text
+            }
+            
+        else:
+            return {'success': False, 'error': f'Неизвестный тип CRM: {crm_type}'}
+            
+    except Exception as e:
+        if application_id:
+            log_integration_send(
+                integration['id'], 
+                application_id,
+                'error',
+                lead_data,
+                None,
+                str(e)
+            )
+        return {'success': False, 'error': str(e)}
+def log_integration_send(integration_id, application_id, status, request_data, response_data, error_message):
+    """Логирование отправки в CRM"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            INSERT INTO integration_logs 
+            (integration_id, application_id, status, request_data, response_data, error_message)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """, (
+            integration_id,
+            application_id,
+            status,
+            json.dumps(request_data),
+            json.dumps(response_data) if response_data else None,
+            error_message
+        ))
+        conn.commit()
+    except Exception as e:
+        print(f"Error logging integration: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+def test_crm_integration(integration_id, data):
+    """Тестирование новой интеграции"""
+    test_data = {
+        'name': 'Test Lead',
+        'phone': '+1234567890',
+        'country': 'Test Country',
+        'geo': 'Test'
+    }
+    
+    integration = {
+        'id': integration_id,
+        'type': data['type'],
+        'settings': data['settings'],
+        'field_mapping': data.get('field_mapping', {})
+    }
+    
+    result = send_to_crm(integration, test_data, None)
+    return result
+
 
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
+
+
+
+
