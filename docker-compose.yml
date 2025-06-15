@@ -1,0 +1,97 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: crypto_bot_postgres
+    environment:
+      POSTGRES_USER: cryptobot
+      POSTGRES_PASSWORD: kuboeb1A
+      POSTGRES_DB: crypto_course_db
+      TZ: Europe/Moscow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - crypto_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: crypto_bot_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - crypto_network
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: docker/bot.Dockerfile
+    container_name: crypto_course_bot
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - crypto_network
+    restart: unless-stopped
+    command: python bot.py
+
+  admin_panel:
+    build:
+      context: .
+      dockerfile: docker/admin.Dockerfile
+    container_name: crypto_admin_panel
+    env_file:
+      - .env
+    ports:
+      - "8000:5000"
+    depends_on:
+      - postgres
+    networks:
+      - crypto_network
+    restart: unless-stopped
+
+  operator_panel:
+    build:
+      context: .
+      dockerfile: docker/operator.Dockerfile
+    container_name: crypto_operator_panel
+    env_file:
+      - .env
+    ports:
+      - "8001:5000"
+    depends_on:
+      - postgres
+    networks:
+      - crypto_network
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: crypto_bot_api
+    env_file:
+      - .env
+    ports:
+      - "8002:5000"
+    depends_on:
+      - postgres
+    networks:
+      - crypto_network
+    restart: unless-stopped
+
+networks:
+  crypto_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
