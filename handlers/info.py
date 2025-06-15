@@ -8,7 +8,7 @@ from sqlalchemy import select, func
 import random
 
 from database import db_manager, Application, Referral, BotUser
-from keyboards.keyboards import get_info_keyboard, get_back_button
+from keyboards.keyboards import get_back_button
 from utils import messages
 
 router = Router(name="info")
