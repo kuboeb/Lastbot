@@ -255,10 +255,7 @@ async def edit_registration(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(messages.ASK_NAME)
     await callback.answer()
 
-@router.message(F.text == messages.BTN_BACK, 
-#                 RegistrationStates.waiting_for_name , 
-#                 RegistrationStates.waiting_for_country , 
-#                 RegistrationStates.waiting_for_phone)
+@router.message(F.text == messages.BTN_BACK)
 async def back_in_registration(message: Message, state: FSMContext):
     """Кнопка назад в процессе регистрации"""
     current_state = await state.get_state()
