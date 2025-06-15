@@ -1,255 +1,252 @@
 {% extends "base.html" %}
 
-{% block title %}Дашборд - Админ панель{% endblock %}
-
-{% block extra_css %}
-<style>
-    .funnel-step {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 10px;
-        position: relative;
-        transition: all 0.3s;
-    }
-    .funnel-step:hover {
-        transform: translateX(5px);
-        box-shadow: 0 3px 10px rgba(0,0,0,.1);
-    }
-    .funnel-percent {
-        position: absolute;
-        right: 20px;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 24px;
-        font-weight: bold;
-        color: #667eea;
-    }
-    .stat-card {
-        transition: all 0.3s;
-    }
-    .stat-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 5px 20px rgba(0,0,0,.1);
-    }
-</style>
-{% endblock %}
+{% block title %}Дашборд{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <h1 class="h2 mb-4">Дашборд</h1>
+    <h1 class="h3 mb-4">Дашборд</h1>
     
     <!-- Статистика -->
     <div class="row mb-4">
         <div class="col-md-3">
-            <div class="card stat-card border-primary border-start border-4">
+            <div class="card">
                 <div class="card-body">
                     <h5 class="card-title text-muted">Заявок сегодня</h5>
-                    <h2 class="mb-0">{{ new_apps_today }}</h2>
+                    <h2 class="mb-0">{{ today_count }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card stat-card border-success border-start border-4">
+            <div class="card">
                 <div class="card-body">
-                    <h5 class="card-title text-muted">Рефералов сегодня</h5>
-                    <h2 class="mb-0">{{ new_referrals_today }}</h2>
+                    <h5 class="card-title text-muted">Заявок за неделю</h5>
+                    <h2 class="mb-0">{{ week_count }}</h2>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card stat-card border-warning border-start border-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">Заявок за месяц</h5>
+                    <h2 class="mb-0">{{ month_count }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
                 <div class="card-body">
                     <h5 class="card-title text-muted">Конверсия</h5>
-                    <h2 class="mb-0">
-{% if funnel_stats["start"] > 0 %}
-                            {{ "%.1f"|format(funnel_stats["complete_registration"] / funnel_stats["start"] * 100) }}%
-                        {% else %}
-                            0%
-                        {% endif %}
-                    </h2>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card stat-card border-info border-start border-4">
-                <div class="card-body">
-                    <h5 class="card-title text-muted">Активных пользователей</h5>
-                    <h2 class="mb-0">{{ funnel_stats["start"] }}</h2>
+                    <h2 class="mb-0">{{ "%.1f"|format(conversion_rate) }}%</h2>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- График -->
+    <!-- Воронка и График -->
     <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Заявки за последние 7 дней</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="applicationsChart" height="100"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Воронка регистрации -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card">
+        <!-- Воронка регистрации -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
                 <div class="card-header">
                     <h5 class="mb-0">Воронка регистрации (7 дней)</h5>
                 </div>
                 <div class="card-body">
-                    <div class="funnel-step">
-                        <h6>Команда /start</h6>
-                        <p class="mb-0 text-muted">{{ funnel_stats["start"] }} пользователей</p>
-                        <span class="funnel-percent">100%</span>
+                    <!-- Начали регистрацию -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Начали регистрацию</span>
+                            <span>{{ funnel_stats['start'] }}</span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar bg-primary" style="width: 100%;">100%</div>
+                        </div>
                     </div>
                     
-                    <div class="funnel-step">
-                        <h6>Начали регистрацию</h6>
-                        <p class="mb-0 text-muted">{{ funnel_stats["begin_registration"] }} пользователей</p>
-                        <span class="funnel-percent">
-                            {% if funnel_stats["start"] > 0 %}
-                                {{ "%.0f"|format(funnel_stats["begin_registration"] / funnel_stats["start"] * 100) }}%
+                    <!-- Ввели имя -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Ввели имя</span>
+                            <span>{{ funnel_stats['begin_registration'] }}</span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            {% if funnel_stats['start'] > 0 %}
+                                <div class="progress-bar bg-info" style="width: {{ (funnel_stats['begin_registration'] / funnel_stats['start'] * 100)|int }}%;">
+                                    {{ (funnel_stats['begin_registration'] / funnel_stats['start'] * 100)|int }}%
+                                </div>
                             {% else %}
-                                0%
+                                <div class="progress-bar bg-info" style="width: 0%;">0%</div>
                             {% endif %}
-                        </span>
+                        </div>
                     </div>
                     
-                    <div class="funnel-step">
-                        <h6>Ввели имя</h6>
-                        <p class="mb-0 text-muted">{{ funnel_stats.enter_name }} пользователей</p>
-                        <span class="funnel-percent">
-                            {% if funnel_stats["start"] > 0 %}
-                                {{ "%.0f"|format(funnel_stats.enter_name / funnel_stats["start"] * 100) }}%
+                    <!-- Указали страну -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Указали страну</span>
+                            <span>{{ funnel_stats['entered_country'] }}</span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            {% if funnel_stats['start'] > 0 %}
+                                <div class="progress-bar bg-info" style="width: {{ (funnel_stats['entered_country'] / funnel_stats['start'] * 100)|int }}%;">
+                                    {{ (funnel_stats['entered_country'] / funnel_stats['start'] * 100)|int }}%
+                                </div>
                             {% else %}
-                                0%
+                                <div class="progress-bar bg-info" style="width: 0%;">0%</div>
                             {% endif %}
-                        </span>
+                        </div>
                     </div>
                     
-                    <div class="funnel-step">
-                        <h6>Ввели страну</h6>
-                        <p class="mb-0 text-muted">{{ funnel_stats.enter_country }} пользователей</p>
-                        <span class="funnel-percent">
-                            {% if funnel_stats["start"] > 0 %}
-                                {{ "%.0f"|format(funnel_stats.enter_country / funnel_stats["start"] * 100) }}%
+                    <!-- Ввели телефон -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Ввели телефон</span>
+                            <span>{{ funnel_stats['entered_phone'] }}</span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            {% if funnel_stats['start'] > 0 %}
+                                <div class="progress-bar bg-info" style="width: {{ (funnel_stats['entered_phone'] / funnel_stats['start'] * 100)|int }}%;">
+                                    {{ (funnel_stats['entered_phone'] / funnel_stats['start'] * 100)|int }}%
+                                </div>
                             {% else %}
-                                0%
+                                <div class="progress-bar bg-info" style="width: 0%;">0%</div>
                             {% endif %}
-                        </span>
+                        </div>
                     </div>
                     
-                    <div class="funnel-step">
-                        <h6>Ввели телефон</h6>
-                        <p class="mb-0 text-muted">{{ funnel_stats.enter_phone }} пользователей</p>
-                        <span class="funnel-percent">
-                            {% if funnel_stats["start"] > 0 %}
-                                {{ "%.0f"|format(funnel_stats.enter_phone / funnel_stats["start"] * 100) }}%
+                    <!-- Выбрали время -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Выбрали время</span>
+                            <span>{{ funnel_stats['entered_time'] }}</span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            {% if funnel_stats['start'] > 0 %}
+                                <div class="progress-bar bg-info" style="width: {{ (funnel_stats['entered_time'] / funnel_stats['start'] * 100)|int }}%;">
+                                    {{ (funnel_stats['entered_time'] / funnel_stats['start'] * 100)|int }}%
+                                </div>
                             {% else %}
-                                0%
+                                <div class="progress-bar bg-info" style="width: 0%;">0%</div>
                             {% endif %}
-                        </span>
+                        </div>
                     </div>
                     
-                    <div class="funnel-step bg-success text-white">
-                        <h6>Завершили регистрацию</h6>
-                        <p class="mb-0">{{ funnel_stats["complete_registration"] }} пользователей</p>
-                        <span class="funnel-percent text-white">
-                            {% if funnel_stats["start"] > 0 %}
-                                {{ "%.0f"|format(funnel_stats["complete_registration"] / funnel_stats["start"] * 100) }}%
+                    <!-- Завершили регистрацию -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span><strong>Завершили регистрацию</strong></span>
+                            <span><strong>{{ funnel_stats['complete_registration'] }}</strong></span>
+                        </div>
+                        <div class="progress" style="height: 25px;">
+                            {% if funnel_stats['start'] > 0 %}
+                                <div class="progress-bar bg-success" style="width: {{ (funnel_stats['complete_registration'] / funnel_stats['start'] * 100)|int }}%;">
+                                    {{ (funnel_stats['complete_registration'] / funnel_stats['start'] * 100)|int }}%
+                                </div>
                             {% else %}
-                                0%
+                                <div class="progress-bar bg-success" style="width: 0%;">0%</div>
                             {% endif %}
-                        </span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
         
+        <!-- График -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Заявки за последние 7 дней</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="applicationsChart"></canvas>
+                </div>
+            </div>
+        </div>
     </div>
     
     <!-- Последние заявки -->
-    <div class="row mt-4">
+    <div class="row">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Последние заявки</h5>
+                    <a href="{{ url_for('applications') }}" class="btn btn-primary btn-sm">Все заявки</a>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
-                        <table class="table table-sm">
+                        <table class="table table-hover">
                             <thead>
                                 <tr>
+                                    <th>ID</th>
                                     <th>Имя</th>
                                     <th>Страна</th>
+                                    <th>Телефон</th>
                                     <th>Время</th>
+                                    <th>Дата</th>
+                                    <th>Источник</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for app in recent_apps %}
+                                {% for app in recent_applications %}
                                 <tr>
+                                    <td>{{ app.id }}</td>
                                     <td>{{ app.full_name }}</td>
                                     <td>{{ app.country }}</td>
-                                    <td>{{ app.created_at.strftime('%d.%m %H:%M') }}</td>
+                                    <td>{{ app.phone }}</td>
+                                    <td>{{ app.preferred_time }}</td>
+                                    <td>{{ app.created_at.strftime('%d.%m.%Y %H:%M') if app.created_at else '-' }}</td>
+                                    <td>
+                                        {% if app.referrer_id %}
+                                            <span class="badge bg-success">Реферал</span>
+                                        {% elif app.source_id %}
+                                            <span class="badge bg-info">Источник {{ app.source_id }}</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Прямой</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-                    <a href="{{ url_for('applications') }}" class="btn btn-sm btn-primary">
-                        Все заявки →
-                    </a>
                 </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 // График заявок
 const ctx = document.getElementById('applicationsChart').getContext('2d');
-
-$.get('/admin/api/stats/chart?days=7')
-    .done(function(data) {
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [{
-                    label: 'Заявки',
-                    data: data.map(d => d.count),
-                    borderColor: 'rgb(102, 126, 234)',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    tension: 0.3
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
+const applicationsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels|tojson }},
+        datasets: [{
+            label: 'Заявки',
+            data: {{ chart_data|tojson }},
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1
                 }
             }
-        });
-    });
+        }
+    }
+});
 </script>
 {% endblock %}
