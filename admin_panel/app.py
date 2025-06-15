@@ -1726,49 +1726,64 @@ def integrations():
 def create_integration():
     """Создание новой интеграции"""
     if request.method == 'POST':
-        name = request.form.get('name')
-        integration_type = request.form.get('type')
-        
-        settings = {}
-        if integration_type == 'alphacrm':
-            settings = {
-                'domain': request.form.get('domain', 'api.alphacrm.cc'),
-                'aff_id': request.form.get('aff_id'),
-                'api_key': request.form.get('api_key'),
-                'source': request.form.get('source', 'telegram_bot')
-            }
-        
-        if not name or not integration_type:
-            flash('Заполните все обязательные поля', 'danger')
-            return render_template('create_integration.html')
-        
-        conn = get_db_connection()
-        cur = conn.cursor()
-        
         try:
-            cur.execute("""
-                INSERT INTO integrations (name, type, settings)
-                VALUES (%s, %s, %s)
-                RETURNING id
-            """, (name, integration_type, json.dumps(settings)))
+            name = request.form.get('name')
+            integration_type = request.form.get('type')
             
-            new_id = cur.fetchone()[0]
+            if not name or not integration_type:
+                flash('Заполните все обязательные поля', 'danger')
+                return render_template('create_integration.html')
+            
+            settings = {}
+            if integration_type == 'alphacrm':
+                settings = {
+                    'domain': request.form.get('domain', 'api.alphacrm.cc'),
+                    'aff_id': request.form.get('aff_id', ''),
+                    'api_key': request.form.get('api_key', ''),
+                    'source': request.form.get('source', 'telegram_bot')
+                }
+                
+                # Проверка обязательных полей для AlphaCRM
+                if not settings['aff_id']:
+                    flash('Affiliate ID обязателен для AlphaCRM', 'danger')
+                    return render_template('create_integration.html')
+            
+            conn = get_db_connection()
+            cur = conn.cursor()
+            
+            # Вставляем новую интеграцию
+            cur.execute("""
+                INSERT INTO integrations (name, type, settings, is_active)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (name, integration_type, json.dumps(settings), True))
+            
+            new_id = cur.fetchone()['id'] if hasattr(cur, 'fetchone') else None
             conn.commit()
+            
+            flash(f'Интеграция "{name}" успешно создана!', 'success')
+            app.logger.info(f"Created integration: {name} (ID: {new_id})")
+            
             cur.close()
             conn.close()
             
-            flash(f'Интеграция "{name}" успешно создана!', 'success')
             return redirect(url_for('integrations'))
             
         except Exception as e:
-            conn.rollback()
-            cur.close()
-            conn.close()
+            if 'conn' in locals():
+                conn.rollback()
+                conn.close()
+            
             app.logger.error(f"Error creating integration: {str(e)}")
+            import traceback
+            app.logger.error(traceback.format_exc())
+            
             flash(f'Ошибка создания интеграции: {str(e)}', 'danger')
             return render_template('create_integration.html')
     
+    # GET запрос - показываем форму
     return render_template('create_integration.html')
+
 
 @app.route('/integrations/<int:integration_id>/test', methods=['POST'])
 @login_required
