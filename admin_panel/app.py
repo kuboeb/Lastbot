@@ -10,6 +10,7 @@ def format_datetime(dt):
     return '-', redirect, url_for, request, flash, jsonify, send_file
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 import psycopg2
+from psycopg2.extras import RealDictCursor
 
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
@@ -49,7 +50,7 @@ def get_db_connection():
         database='crypto_course_db',
         user='cryptobot',
         password='kuboeb1A',
-        )
+        cursor_factory=RealDictCursor)
 
 class Admin:
     def __init__(self, id, username):
@@ -1638,6 +1639,7 @@ def test_db():
     """Тест подключения к БД"""
     try:
         import psycopg2
+from psycopg2.extras import RealDictCursor
         
         
         # Прямое подключение
@@ -1686,6 +1688,7 @@ def test_db():
 @login_required
 def integrations():
     """Страница управления интеграциями CRM"""
+    conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1701,14 +1704,14 @@ def integrations():
         rows = cur.fetchall()
         
         for row in rows:
-            # row - это кортеж, обращаемся по индексу
+            # С RealDictCursor row - это словарь
             integration = {
-                'id': row[0],
-                'name': row[1],
-                'type': row[2],
-                'settings': row[3] or {},
-                'is_active': row[4],
-                'created_at': row[5]
+                'id': row['id'],
+                'name': row['name'],
+                'type': row['type'],
+                'settings': row['settings'] or {},
+                'is_active': row['is_active'],
+                'created_at': row['created_at']
             }
             
             # Скрываем API ключ
@@ -1732,10 +1735,10 @@ def integrations():
                 stats = cur.fetchone()
                 if stats:
                     integration['stats'] = {
-                        'total': stats[0] or 0,
-                        'success': stats[1] or 0,
-                        'error': stats[2] or 0,
-                        'last_send': stats[3]
+                        'total': stats['total'] or 0,
+                        'success': stats['success'] or 0,
+                        'error': stats['error'] or 0,
+                        'last_send': stats['last_send']
                     }
                 else:
                     integration['stats'] = {
@@ -1744,8 +1747,8 @@ def integrations():
                         'error': 0,
                         'last_send': None
                     }
-            except:
-                # Если ошибка со статистикой, ставим нули
+            except Exception as stats_error:
+                app.logger.warning(f"Stats error for integration {integration['id']}: {stats_error}")
                 integration['stats'] = {
                     'total': 0,
                     'success': 0,
@@ -1761,10 +1764,13 @@ def integrations():
         return render_template('integrations.html', integrations=integrations_list)
         
     except Exception as e:
-        if 'conn' in locals():
+        if conn:
             conn.close()
         
         app.logger.error(f"Error in integrations: {str(e)}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        
         flash(f'Ошибка при загрузке интеграций: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
 
