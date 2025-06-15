@@ -1,13 +1,14 @@
 """
 Админ-панель для управления ботом
 """
-from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
+from flask import Flask, render_template, redirect, url_for, request, flash, jsonify, send_file
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 import os
+import io
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -288,9 +289,7 @@ def users():
 @app.route('/export_users')
 @login_required
 def export_users():
-    import io
     import xlsxwriter
-    from flask import send_file
     
     # Получаем те же данные с фильтрами
     conn = get_db_connection()
@@ -392,48 +391,6 @@ def delete_user(user_id):
         cur.close()
         conn.close()
 
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
-# Заглушки для других страниц
-@app.route('/broadcast')
-@login_required
-def broadcast():
-    return render_template('broadcast.html')
-
-@app.route('/traffic-sources')
-@login_required
-def traffic_sources():
-    return render_template('traffic_sources.html')
-
-@app.route('/system')
-@login_required
-def system():
-    return render_template('system.html')
-
-# Создадим начального админа если его нет
-def init_admin():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM admins WHERE username = 'admin'")
-    if not cur.fetchone():
-        password_hash = generate_password_hash('kuboeb1A')
-        cur.execute(
-            "INSERT INTO admins (username, password_hash) VALUES (%s, %s)",
-            ('admin', password_hash)
-        )
-        conn.commit()
-        print("Admin user created")
-    cur.close()
-    conn.close()
-
-if __name__ == '__main__':
-    init_admin()
-    app.run(host='0.0.0.0', port=8000, debug=False)
-
 @app.route('/editor')
 @login_required
 def text_editor():
@@ -487,7 +444,6 @@ def update_text(text_id):
         cur.close()
         conn.close()
 
-# API endpoint для бота чтобы получать тексты
 @app.route('/api/texts/<key>')
 def get_text_by_key(key):
     # Простая защита по API ключу
@@ -505,3 +461,44 @@ def get_text_by_key(key):
     if result:
         return jsonify({'text': result['text']})
     return jsonify({'error': 'Text not found'}), 404
+
+@app.route('/broadcast')
+@login_required
+def broadcast():
+    return render_template('broadcast.html')
+
+@app.route('/traffic-sources')
+@login_required
+def traffic_sources():
+    return render_template('traffic_sources.html')
+
+@app.route('/system')
+@login_required
+def system():
+    return render_template('system.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# Создадим начального админа если его нет
+def init_admin():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM admins WHERE username = 'admin'")
+    if not cur.fetchone():
+        password_hash = generate_password_hash('kuboeb1A')
+        cur.execute(
+            "INSERT INTO admins (username, password_hash) VALUES (%s, %s)",
+            ('admin', password_hash)
+        )
+        conn.commit()
+        print("Admin user created")
+    cur.close()
+    conn.close()
+
+if __name__ == '__main__':
+    init_admin()
+    app.run(host='0.0.0.0', port=8000, debug=False)
