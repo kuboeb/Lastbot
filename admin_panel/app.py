@@ -1,5 +1,5 @@
 """
-Админ-панель для управления ботом (синхронная версия)
+Админ-панель для управления ботом
 """
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
@@ -48,70 +48,10 @@ def load_user(user_id):
     cur = conn.cursor()
     cur.execute("SELECT id, username FROM admins WHERE id = %s", (int(user_id),))
     admin_data = cur.fetchone()
-        # Получаем реальные данные воронки
-    funnel_stats = {}
-    
-    # Начали регистрацию
-    cur.execute('''
-        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
-        WHERE action = 'begin_registration' AND created_at >= %s
-    ''', (week_ago,))
-    result = cur.fetchone()
-    funnel_stats['start'] = result['count'] if result else 0
-    
-    # Ввели имя
-    cur.execute('''
-        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
-        WHERE action = 'enter_name' AND created_at >= %s
-    ''', (week_ago,))
-    result = cur.fetchone()
-    funnel_stats['begin_registration'] = result['count'] if result else 0
-    
-    # Указали страну
-    cur.execute('''
-        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
-        WHERE action = 'enter_country' AND created_at >= %s
-    ''', (week_ago,))
-    result = cur.fetchone()
-    funnel_stats['entered_country'] = result['count'] if result else 0
-    
-    # Ввели телефон
-    cur.execute('''
-        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
-        WHERE action = 'enter_phone' AND created_at >= %s
-    ''', (week_ago,))
-    result = cur.fetchone()
-    funnel_stats['entered_phone'] = result['count'] if result else 0
-    
-    # Выбрали время
-    cur.execute('''
-        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
-        WHERE action = 'enter_time' AND created_at >= %s
-    ''', (week_ago,))
-    result = cur.fetchone()
-    funnel_stats['entered_time'] = result['count'] if result else 0
-    
-    # Завершили регистрацию
-    cur.execute('''
-        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
-        WHERE action = 'completed' AND created_at >= %s
-    ''', (week_ago,))
-    result = cur.fetchone()
-    funnel_stats['complete_registration'] = result['count'] if result else 0
-    
     cur.close()
     conn.close()
     
-    return render_template('dashboard.html',
-        today_count=today_count,
-        week_count=week_count,
-        month_count=month_count,
-        recent_applications=recent_applications,
-        conversion_rate=conversion_rate,
-        chart_labels=chart_labels,
-        chart_data=chart_data,
-        bot_status={'enabled': True, 'uptime': '2д 14ч 35м'},
-        funnel_stats=funnel_statsif admin_data:
+    if admin_data:
         return Admin(admin_data['id'], admin_data['username'])
     return None
 
@@ -199,6 +139,57 @@ def dashboard():
         """, (date,))
         chart_data.append(cur.fetchone()['count'])
     
+    # Получаем данные воронки
+    funnel_stats = {}
+    
+    # Начали регистрацию
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'begin_registration' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['start'] = result['count'] if result else 0
+    
+    # Ввели имя
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_name' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['begin_registration'] = result['count'] if result else 0
+    
+    # Ввели страну
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_country' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_country'] = result['count'] if result else 0
+    
+    # Ввели телефон
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_phone' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_phone'] = result['count'] if result else 0
+    
+    # Выбрали время
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_time' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_time'] = result['count'] if result else 0
+    
+    # Завершили регистрацию
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'completed' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['complete_registration'] = result['count'] if result else 0
+    
     cur.close()
     conn.close()
     
@@ -211,7 +202,7 @@ def dashboard():
         chart_labels=chart_labels,
         chart_data=chart_data,
         bot_status={'enabled': True, 'uptime': '2д 14ч 35м'},
-
+        funnel_stats=funnel_stats
     )
 
 @app.route('/applications')
@@ -262,6 +253,27 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+# Заглушки для других страниц
+@app.route('/editor')
+@login_required
+def text_editor():
+    return render_template('editor.html')
+
+@app.route('/broadcast')
+@login_required
+def broadcast():
+    return render_template('broadcast.html')
+
+@app.route('/traffic-sources')
+@login_required
+def traffic_sources():
+    return render_template('traffic_sources.html')
+
+@app.route('/system')
+@login_required
+def system():
+    return render_template('system.html')
+
 # Создадим начального админа если его нет
 def init_admin():
     conn = get_db_connection()
@@ -281,23 +293,3 @@ def init_admin():
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
-
-@app.route('/editor')
-@login_required
-def text_editor():
-    return "<h1>Редактор текстов (в разработке)</h1><a href='/dashboard'>Назад</a>"
-
-@app.route('/broadcast')
-@login_required
-def broadcast():
-    return "<h1>Рассылка (в разработке)</h1><a href='/dashboard'>Назад</a>"
-
-@app.route('/traffic-sources')
-@login_required
-def traffic_sources():
-    return "<h1>Источники трафика (в разработке)</h1><a href='/dashboard'>Назад</a>"
-
-@app.route('/system')
-@login_required
-def system():
-    return "<h1>Информация о системе (в разработке)</h1><a href='/dashboard'>Назад</a>"
