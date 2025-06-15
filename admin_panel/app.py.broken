@@ -645,12 +645,16 @@ def export_users():
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
 def delete_user(user_id):
     """Удаление пользователя"""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
+    conn = None
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         # Проверяем существование пользователя
         cur.execute("SELECT username FROM bot_users WHERE user_id = %s", (user_id,))
         user = cur.fetchone()
@@ -658,39 +662,45 @@ def delete_user(user_id):
         if not user:
             return jsonify({'status': 'error', 'message': 'Пользователь не найден'}), 404
         
-        # Удаляем связанные записи в правильном порядке
-        # 1. Удаляем действия пользователя
-        cur.execute("DELETE FROM user_actions WHERE user_id = %s", (user_id,))
+        # Проверяем наличие заявки
+        cur.execute("SELECT id FROM applications WHERE user_id = %s", (user_id,))
+        application = cur.fetchone()
         
-        # 2. Удаляем рефералов
-        cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
+        if application:
+            # Если есть заявка, только блокируем
+            cur.execute("UPDATE bot_users SET is_blocked = TRUE WHERE user_id = %s", (user_id,))
+            conn.commit()
+            return jsonify({'status': 'success', 'message': 'Пользователь заблокирован (есть заявка)'})
         
-        # 3. Удаляем события трекинга
-        cur.execute("DELETE FROM tracking_events WHERE user_id = %s", (user_id,))
+        # Удаляем связанные данные
+        try:
+            cur.execute("DELETE FROM user_actions WHERE user_id = %s", (user_id,))
+        except:
+            pass
         
-        # 4. Удаляем заявки пользователя
-        cur.execute("DELETE FROM applications WHERE user_id = %s", (user_id,))
+        try:
+            cur.execute("DELETE FROM tracking_events WHERE user_id = %s", (user_id,))
+        except:
+            pass
+            
+        try:
+            cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
+        except:
+            pass
         
-        # 5. Удаляем самого пользователя
+        # Удаляем пользователя
         cur.execute("DELETE FROM bot_users WHERE user_id = %s", (user_id,))
         
         conn.commit()
-        
-        username = user['username'] or str(user_id)
-        return jsonify({
-            'status': 'success', 
-            'message': f'Пользователь {username} полностью удален вместе со всеми данными'
-        })
+        return jsonify({'status': 'success', 'message': 'Пользователь удален'})
         
     except Exception as e:
-        conn.rollback()
-        logger.error(f"Error deleting user {user_id}: {str(e)}")
+        if conn:
+            conn.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
-
-@app.route('/editor')
+        if conn:
+            cur.close()
 @login_required
 def text_editor():
     conn = get_db_connection()
@@ -701,6 +711,29 @@ def text_editor():
     conn.close()
     
     return render_template('editor.html', texts=texts)
+
+
+@app.route('/editor/update/<int:text_id>', methods=['POST'])
+@login_required
+def update_text(text_id):
+    """Обновить текст"""
+    new_text = request.form.get('text', '')
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    cur.execute("""
+        UPDATE bot_texts 
+        SET text = %s, updated_at = CURRENT_TIMESTAMP
+        WHERE id = %s
+    """, (new_text, text_id))
+    
+    conn.commit()
+    cur.close()
+    conn.close()
+    
+    flash('Текст успешно обновлен!', 'success')
+    return redirect(url_for('editor'))
 
 @app.route('/admin/texts/<int:text_id>')
 @login_required
@@ -1597,7 +1630,7 @@ def test_integration(integration_id):
         """, (
             integration_id,
             'success' if result.get('success') else 'error',
-            json.dumps(result.get('payload', test_data)),
+            json.dumps(test_data),
             json.dumps(result.get('response', {})),
             result.get('error', '')
         ))
@@ -1868,7 +1901,7 @@ def test_integration(integration_id):
         """, (
             integration_id,
             'success' if result.get('success') else 'error',
-            json.dumps(result.get('payload', test_lead)),
+            json.dumps(test_lead),
             json.dumps(result.get('response', {})),
             result.get('error', '')
         ))
