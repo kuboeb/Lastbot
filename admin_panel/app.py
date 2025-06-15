@@ -1427,7 +1427,7 @@ def test():
 def integrations():
     """Страница управления интеграциями"""
     print("DEBUG: Entering integrations function")
-        conn = get_db_connection()
+    conn = get_db_connection()
     cur = conn.cursor()
     
     try:
@@ -1476,12 +1476,12 @@ def integrations():
         return render_template('integrations.html', integrations=integrations_list)
         
     except Exception as e:
+        print(f"ERROR in integrations: {e}")
         flash(f'Ошибка: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
     finally:
         cur.close()
         conn.close()
-
 
 
 @app.route('/integrations/create', methods=['GET', 'POST'])
