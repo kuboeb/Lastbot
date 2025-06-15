@@ -1248,7 +1248,9 @@ def create_broadcast():
             cur.close()
             conn.close()
     
-    return render_template('create_broadcast.html')@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
+    return render_template('create_broadcast.html')
+
+@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
 @login_required
 def send_broadcast(broadcast_id):
     """Запуск рассылки"""
