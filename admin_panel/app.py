@@ -1,7 +1,7 @@
 """
 Админ-панель для управления ботом
 """
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 
 def format_datetime(dt):
     '''Форматировать datetime для отображения'''
@@ -784,3 +784,32 @@ def init_admin():
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
+
+@app.route('/admin/texts/<int:text_id>/update', methods=['POST'])
+@login_required
+def update_text(text_id):
+    """Обновить текст"""
+    data = request.get_json()
+    text_content = data.get('text') if data else None
+    
+    if not text_content:
+        return jsonify({'error': 'Text is required'}), 400
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE bot_texts 
+            SET text = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+            WHERE id = %s
+        """, (text_content, current_user.id, text_id))
+        
+        conn.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
