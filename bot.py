@@ -22,9 +22,9 @@ from middlewares.logging import LoggingMiddleware
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('logs/bot.log'),
+        logging.FileHandler("logs/bot.log"),
         logging.StreamHandler(sys.stdout)
     ]
 )
