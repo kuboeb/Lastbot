@@ -1422,6 +1422,13 @@ def test():
 
 
 
+
+@app.route('/test-integrations')
+def test_integrations():
+    """Тестовая страница интеграций без авторизации"""
+    return "Integrations route works!"
+
+
 @app.route('/integrations')
 @login_required
 def integrations():
