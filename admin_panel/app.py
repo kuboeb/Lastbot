@@ -220,3 +220,23 @@ def init_admin():
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
+
+@app.route('/editor')
+@login_required
+def text_editor():
+    return "<h1>Редактор текстов (в разработке)</h1><a href='/dashboard'>Назад</a>"
+
+@app.route('/broadcast')
+@login_required
+def broadcast():
+    return "<h1>Рассылка (в разработке)</h1><a href='/dashboard'>Назад</a>"
+
+@app.route('/traffic-sources')
+@login_required
+def traffic_sources():
+    return "<h1>Источники трафика (в разработке)</h1><a href='/dashboard'>Назад</a>"
+
+@app.route('/system')
+@login_required
+def system():
+    return "<h1>Информация о системе (в разработке)</h1><a href='/dashboard'>Назад</a>"
