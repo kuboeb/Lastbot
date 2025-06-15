@@ -337,9 +337,6 @@ def stats_chart():
     
     return jsonify(chart_data)
 
-@app.before_first_request
-async def startup():
-    """Инициализация при первом запросе"""
     await db_manager.connect()
     
     # Создаем админа по умолчанию если его нет
@@ -360,3 +357,7 @@ if __name__ == '__main__':
         port=config.ADMIN_PANEL_PORT,
         debug=False
     )
+
+with app.app_context():
+    init_db()
+
