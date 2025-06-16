@@ -1,17 +1,36 @@
 import sys
 import asyncio
 import logging
-sys.path.append('/home/Lastbot/admin_panel')
+import os
+import psycopg2
+import json
+from datetime import datetime
 
-from facebook_module.services import send_facebook_conversion
-from database import get_db_connection
+# Добавляем пути
+sys.path.append('/home/Lastbot')
+sys.path.append('/home/Lastbot/admin_panel')
 
 logger = logging.getLogger(__name__)
 
-async def send_conversion_to_facebook(application_id: int, user_id: int):
-    """Отправка конверсии в Facebook если пользователь пришел оттуда"""
+def get_db_connection_sync():
+    """Создаем подключение к БД для синхронного кода"""
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    return psycopg2.connect(
+        host=os.getenv('DB_HOST', 'localhost'),
+        database=os.getenv('DB_NAME', 'crypto_course_db'),
+        user=os.getenv('DB_USER', 'cryptobot'),
+        password=os.getenv('DB_PASSWORD', 'kuboeb1A')
+    )
+
+def send_facebook_conversion_sync(application_id: int, user_id: int):
+    """Синхронная версия отправки конверсии"""
     try:
-        conn = get_db_connection()
+        # Импортируем здесь, чтобы избежать циклических импортов
+        from admin_panel.facebook_module.services import send_facebook_conversion
+        
+        conn = get_db_connection_sync()
         cur = conn.cursor()
         
         # Получаем данные заявки и источника
@@ -48,7 +67,7 @@ async def send_conversion_to_facebook(application_id: int, user_id: int):
             'country': result[4]
         }
         
-        settings = result[7]
+        settings = json.loads(result[7]) if isinstance(result[7], str) else result[7]
         
         # Отправляем конверсию
         success, response = send_facebook_conversion(application_data, settings)
@@ -59,14 +78,9 @@ async def send_conversion_to_facebook(application_id: int, user_id: int):
             logger.error(f"❌ Failed to send Facebook conversion: {response}")
             
     except Exception as e:
-        logger.error(f"Error in send_conversion_to_facebook: {e}")
+        logger.error(f"Error in send_facebook_conversion_sync: {e}")
 
-# Синхронная обертка для использования в обычном коде
-def send_facebook_conversion_sync(application_id: int, user_id: int):
-    """Синхронная версия отправки конверсии"""
-    try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(send_conversion_to_facebook(application_id, user_id))
-    except Exception as e:
-        logger.error(f"Error in sync wrapper: {e}")
+# Пустая async версия для совместимости
+async def send_conversion_to_facebook(application_id: int, user_id: int):
+    """Асинхронная обертка"""
+    send_facebook_conversion_sync(application_id, user_id)
