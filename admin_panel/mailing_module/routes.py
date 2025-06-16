@@ -112,3 +112,36 @@ def delete(mailing_id):
             return jsonify({'success': False, 'error': 'Невозможно удалить рассылку (возможно, она в процессе отправки)'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@login_required
+    """Страница автосценариев"""
+    try:
+        from .scenario_service import ScenarioService
+        
+        scenario_service = ScenarioService(get_db_connection, mailing_service)
+        stats = scenario_service.get_scenario_stats()
+        
+    except Exception as e:
+
+@login_required
+    """Включить/выключить сценарий"""
+    try:
+        data = request.get_json()
+        scenario_id = data.get('scenario_id')
+        is_active = data.get('is_active')
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SET is_active = %s 
+            WHERE id = %s
+        """, (is_active, scenario_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
