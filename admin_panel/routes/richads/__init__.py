@@ -1,0 +1,1 @@
+# RichAds admin routes

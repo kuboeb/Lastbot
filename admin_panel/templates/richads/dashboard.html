@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}RichAds Конверсии{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h1 class="mb-4">
+        <i class="bi bi-graph-up-arrow"></i> RichAds Конверсии
+    </h1>
+
+    <!-- Статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Всего конверсий</h5>
+                    <h2 class="text-primary">{{ stats.total }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Успешно</h5>
+                    <h2 class="text-success">{{ stats.sent }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Ошибки</h5>
+                    <h2 class="text-danger">{{ stats.failed }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Сумма выплат</h5>
+                    <h2 class="text-info">${{ "%.2f"|format(stats.total_payout or 0) }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Успешные конверсии -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">✅ Успешно отправленные конверсии</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID заявки</th>
+                            <th>Имя</th>
+                            <th>Телефон</th>
+                            <th>Страна</th>
+                            <th>Кампания</th>
+                            <th>Click ID</th>
+                            <th>Выплата</th>
+                            <th>Отправлено</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for conv in successful_conversions %}
+                        <tr>
+                            <td>{{ conv.application_id }}</td>
+                            <td>{{ conv.full_name }}</td>
+                            <td>{{ conv.phone }}</td>
+                            <td>{{ conv.country }}</td>
+                            <td>{{ conv.campaign or '-' }}</td>
+                            <td>
+                                <small class="text-muted">{{ conv.click_id[:20] }}...</small>
+                            </td>
+                            <td>${{ "%.2f"|format(conv.payout) }}</td>
+                            <td>{{ conv.request_sent_at.strftime('%d.%m.%Y %H:%M') if conv.request_sent_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Все конверсии -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Все конверсии</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Заявка</th>
+                            <th>Имя</th>
+                            <th>Статус</th>
+                            <th>HTTP код</th>
+                            <th>Создано</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for conv in all_conversions %}
+                        <tr>
+                            <td>{{ conv.id }}</td>
+                            <td>{{ conv.application_id }}</td>
+                            <td>{{ conv.full_name }}</td>
+                            <td>
+                                {% if conv.status == 'sent' %}
+                                    <span class="badge bg-success">Отправлено</span>
+                                {% elif conv.status == 'failed' %}
+                                    <span class="badge bg-danger">Ошибка</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Ожидает</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ conv.response_status or '-' }}</td>
+                            <td>{{ conv.created_at.strftime('%d.%m %H:%M') }}</td>
+                            <td>
+                                {% if conv.status == 'failed' %}
+                                <button class="btn btn-sm btn-warning" onclick="retryConversion({{ conv.id }})">
+                                    <i class="bi bi-arrow-clockwise"></i> Повторить
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function retryConversion(conversionId) {
+    if (confirm('Отправить конверсию повторно?')) {
+        fetch(`/richads/retry/${conversionId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Конверсия отправлена повторно');
+                location.reload();
+            } else {
+                alert('Ошибка: ' + data.message);
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

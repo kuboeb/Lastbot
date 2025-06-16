@@ -263,6 +263,14 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         # Отправка конверсии в Facebook (в фоне)
         try:
             send_fb_conversion_async(application_id)
+    
+    # Проверяем RichAds
+    cur.execute("SELECT platform FROM traffic_sources WHERE id = %s", (source_id,))
+    source_result = cur.fetchone()
+    if source_result and source_result['platform'] == 'richads':
+        from utils.richads.sender import send_richads_conversion_async
+        send_richads_conversion_async(application_id)
+        logger.info(f"Initiated RichAds conversion for application {application_id}")
         except Exception as e:
             logger.error(f"Failed to start FB conversion: {e}")
         
