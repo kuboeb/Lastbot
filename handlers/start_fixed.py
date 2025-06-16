@@ -10,6 +10,84 @@ import re
 import logging
 from datetime import datetime
 
+
+
+async def handle_simple_ad_click(ad_code: str, user_id: int, conn):
+    """Обработка клика по простой рекламной ссылке"""
+    try:
+        # Проверяем, существует ли активная рекламная ссылка
+        ad = await conn.fetchrow(
+            "SELECT id, name FROM simple_ads WHERE code = $1 AND is_active = true",
+            ad_code
+        )
+        
+        if ad:
+            # Записываем клик
+            await conn.execute(
+                "INSERT INTO ad_clicks (ad_id, user_id, event_type) VALUES ($1, $2, 'start')",
+                ad['id'], user_id
+            )
+            
+            # Создаем или обновляем источник трафика
+            source = await conn.fetchrow(
+                """INSERT INTO traffic_sources (name, platform, source_code, link, is_active)
+                   VALUES ($1, 'simple_ad', $2, $3, true)
+                   ON CONFLICT (source_code) DO UPDATE 
+                   SET name = EXCLUDED.name
+                   RETURNING id""",
+                ad['name'], ad_code, f"https://t.me/cryplace_bot?start={ad_code}"
+            )
+            
+            # Обновляем source_id пользователя
+            await conn.execute(
+                "UPDATE bot_users SET source_id = $1 WHERE user_id = $2",
+                source['id'], user_id
+            )
+            
+            logger.info(f"User {user_id} came from simple ad: {ad['name']} ({ad_code})")
+            return True
+    except Exception as e:
+        logger.error(f"Error handling simple ad click: {e}")
+    return False
+
+
+async def handle_simple_ad_click(ad_code: str, user_id: int, conn):
+    """Обработка клика по простой рекламной ссылке"""
+    try:
+        # Проверяем, существует ли активная рекламная ссылка
+        ad = await conn.fetchrow(
+            "SELECT id, name FROM simple_ads WHERE code = $1 AND is_active = true",
+            ad_code
+        )
+        
+        if ad:
+            # Записываем клик
+            await conn.execute(
+                "INSERT INTO ad_clicks (ad_id, user_id, event_type) VALUES ($1, $2, 'start')",
+                ad['id'], user_id
+            )
+            
+            # Создаем или обновляем источник трафика
+            source = await conn.fetchrow(
+                """INSERT INTO traffic_sources (name, platform, source_code, link, is_active)
+                   VALUES ($1, 'simple_ad', $2, $3, true)
+                   ON CONFLICT (source_code) DO UPDATE 
+                   SET name = EXCLUDED.name
+                   RETURNING id""",
+                ad['name'], ad_code, f"https://t.me/cryplace_bot?start={ad_code}"
+            )
+            
+            # Обновляем source_id пользователя
+            await conn.execute(
+                "UPDATE bot_users SET source_id = $1 WHERE user_id = $2",
+                source['id'], user_id
+            )
+            
+            logger.info(f"User {user_id} came from simple ad: {ad['name']} ({ad_code})")
+            return True
+    except Exception as e:
+        logger.error(f"Error handling simple ad click: {e}")
+    return False
 from database import db_manager, BotUser, Application, TrafficSource, UserAction, Referral
 from keyboards.keyboards import (
     get_main_menu_new_user,

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Лиды - {{ ad.name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-people"></i> Лиды от "{{ ad.name }}"</h1>
+        <a href="{{ url_for('simple_ad_details', ad_id=ad.id) }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Фильтры</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Период от:</label>
+                    <input type="date" name="date_from" value="{{ filters.date_from }}" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Период до:</label>
+                    <input type="date" name="date_to" value="{{ filters.date_to }}" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Статус:</label>
+                    <select name="status" class="form-select">
+                        <option value="all" {% if filters.status == 'all' %}selected{% endif %}>Все</option>
+                        <option value="applications" {% if filters.status == 'applications' %}selected{% endif %}>Только заявки</option>
+                        <option value="starts_only" {% if filters.status == 'starts_only' %}selected{% endif %}>Только старты</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Страна:</label>
+                    <select name="country" class="form-select">
+                        <option value="">Все страны</option>
+                        {% for country in countries %}
+                            <option value="{{ country }}" {% if filters.country == country %}selected{% endif %}>
+                                {{ country }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Поиск:</label>
+                    <input type="text" name="search" value="{{ filters.search }}" class="form-control" 
+                           placeholder="Имя, телефон...">
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Применить фильтры</button>
+                    <a href="{{ url_for('simple_ad_leads', ad_id=ad.id) }}" class="btn btn-secondary">Сбросить</a>
+                    <a href="{{ url_for('export_simple_ad_leads', ad_id=ad.id) }}" class="btn btn-success float-end">
+                        <i class="bi bi-download"></i> Экспорт в CSV
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="alert alert-info">
+        Найдено: <strong>{{ leads|length }}</strong> пользователей
+        ({{ leads|selectattr('has_application')|list|length }} заявок, 
+        {{ leads|rejectattr('has_application')|list|length }} только стартов)
+    </div>
+
+    <!-- Таблица лидов -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя</th>
+                            <th>Username</th>
+                            <th>Телефон</th>
+                            <th>Страна</th>
+                            <th>Дата</th>
+                            <th>Статус</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for lead in leads %}
+                        <tr>
+                            <td>{{ lead.user_id }}</td>
+                            <td>{{ lead.full_name or '-' }}</td>
+                            <td>
+                                {% if lead.username %}
+                                    @{{ lead.username }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if lead.phone %}
+                                    {{ lead.phone[:3] }}***{{ lead.phone[-2:] }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ lead.country or '-' }}</td>
+                            <td>
+                                {% if lead.has_application %}
+                                    {{ lead.application_date.strftime('%d.%m.%Y %H:%M') }}
+                                {% else %}
+                                    {{ lead.first_seen.strftime('%d.%m.%Y %H:%M') }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if lead.has_application %}
+                                    <span class="badge bg-success">✅ Заявка</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">⏸ Старт</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="/users?search={{ lead.user_id }}" class="btn btn-sm btn-info" 
+                                   title="Подробнее">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                {% if lead.has_application %}
+                                    <a href="/applications?search={{ lead.user_id }}" 
+                                       class="btn btn-sm btn-primary" title="Заявка">
+                                        <i class="bi bi-file-text"></i>
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

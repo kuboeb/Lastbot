@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Сравнение рекламных кампаний{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-bar-chart"></i> Сравнение рекламных кампаний</h1>
+        <a href="{{ url_for('simple_ads_dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+    </div>
+
+    <!-- Фильтр периода -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row align-items-end">
+                <div class="col-md-4">
+                    <label>Период от:</label>
+                    <input type="date" name="date_from" value="{{ date_from }}" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label>Период до:</label>
+                    <input type="date" name="date_to" value="{{ date_to }}" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary">Применить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Сравнительная таблица -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Сравнение эффективности</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Источник</th>
+                            <th>Бюджет</th>
+                            <th>Старты</th>
+                            <th>Заявки</th>
+                            <th>Конверсия</th>
+                            <th>CPL</th>
+                            <th>Статус</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ad in ads_comparison %}
+                        <tr {% if best_cpl_ad and ad.id == best_cpl_ad.id %}class="table-success"{% endif %}>
+                            <td>
+                                <a href="{{ url_for('simple_ad_details', ad_id=ad.id) }}">
+                                    {{ ad.name }}
+                                </a>
+                                {% if best_cpl_ad and ad.id == best_cpl_ad.id %}
+                                    <span class="badge bg-success">⭐ Best CPL</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ad.budget %}
+                                    €{{ "%.2f"|format(ad.budget) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>{{ ad.starts }}</td>
+                            <td>{{ ad.applications }}</td>
+                            <td>
+                                {% if ad.starts > 0 %}
+                                    {{ "%.1f"|format((ad.applications / ad.starts) * 100) }}%
+                                {% else %}
+                                    0%
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ad.cpl %}
+                                    €{{ "%.2f"|format(ad.cpl) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if ad.applications >= 10 %}
+                                    <span class="badge bg-success">Отлично</span>
+                                {% elif ad.applications >= 5 %}
+                                    <span class="badge bg-warning">Хорошо</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Мало данных</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-info">
+                            <th>ИТОГО:</th>
+                            <th>
+                                {% if totals.total_budget %}
+                                    €{{ "%.2f"|format(totals.total_budget) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </th>
+                            <th>{{ totals.total_users }}</th>
+                            <th>{{ totals.total_applications }}</th>
+                            <th>
+                                {% if totals.total_users > 0 %}
+                                    {{ "%.1f"|format((totals.total_applications / totals.total_users) * 100) }}%
+                                {% else %}
+                                    0%
+                                {% endif %}
+                            </th>
+                            <th>
+                                {% if totals.total_budget and totals.total_applications > 0 %}
+                                    €{{ "%.2f"|format(totals.total_budget / totals.total_applications) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </th>
+                            <th>-</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- График сравнения -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Визуальное сравнение</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="comparisonChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Данные для графика
+const adsData = {{ ads_comparison|tojson }};
+
+// Подготавливаем данные
+const labels = adsData.map(ad => ad.name);
+const startsData = adsData.map(ad => ad.starts);
+const applicationsData = adsData.map(ad => ad.applications);
+
+// Создаем график
+const ctx = document.getElementById('comparisonChart').getContext('2d');
+new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Старты',
+            data: startsData,
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgb(54, 162, 235)',
+            borderWidth: 1
+        }, {
+            label: 'Заявки',
+            data: applicationsData,
+            backgroundColor: 'rgba(75, 192, 192, 0.5)',
+            borderColor: 'rgb(75, 192, 192)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

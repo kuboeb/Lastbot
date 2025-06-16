@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ad.name }} - Детальная статистика{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ ad.name }}</h1>
+        <a href="{{ url_for('simple_ads_dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+    </div>
+
+    <!-- Общая статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Уникальных пользователей</h5>
+                    <h2 class="text-primary">{{ stats.unique_users }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Стартов бота</h5>
+                    <h2 class="text-info">{{ stats.total_starts }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Заявок</h5>
+                    <h2 class="text-success">{{ stats.total_applications }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Конверсия</h5>
+                    <h2 class="text-warning">
+                        {% if stats.total_starts > 0 %}
+                            {{ "%.1f"|format((stats.total_applications / stats.total_starts) * 100) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Воронка конверсии -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Воронка конверсии</h5>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <h3>Клики</h3>
+                    <h1>{{ stats.unique_users }}</h1>
+                </div>
+                <div class="col-md-4">
+                    <h3>→ Старты</h3>
+                    <h1>{{ stats.total_starts }}</h1>
+                    <p class="text-muted">
+                        {% if stats.unique_users > 0 %}
+                            ↓ {{ "%.1f"|format(((stats.unique_users - stats.total_starts) / stats.unique_users) * 100) }}%
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="col-md-4">
+                    <h3>→ Заявки</h3>
+                    <h1>{{ stats.total_applications }}</h1>
+                    <p class="text-muted">
+                        {% if stats.total_starts > 0 %}
+                            ↓ {{ "%.1f"|format(((stats.total_starts - stats.total_applications) / stats.total_starts) * 100) }}%
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- График по дням -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5>Статистика по дням</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="dailyChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Информация о ссылке -->
+    <div class="card">
+        <div class="card-header">
+            <h5>Информация о ссылке</h5>
+        </div>
+        <div class="card-body">
+            <dl class="row">
+                <dt class="col-sm-3">Код:</dt>
+                <dd class="col-sm-9"><code>{{ ad.code }}</code></dd>
+                
+                <dt class="col-sm-3">Ссылка:</dt>
+                <dd class="col-sm-9">
+                    <div class="input-group">
+                        <input type="text" class="form-control" value="https://t.me/cryplace_bot?start={{ ad.code }}" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyLink()">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </dd>
+                
+                {% if ad.description %}
+                <dt class="col-sm-3">Описание:</dt>
+                <dd class="col-sm-9">{{ ad.description }}</dd>
+                {% endif %}
+                
+                {% if ad.budget %}
+                <dt class="col-sm-3">Бюджет:</dt>
+                <dd class="col-sm-9">€{{ "%.2f"|format(ad.budget) }}</dd>
+                
+                <dt class="col-sm-3">CPL:</dt>
+                <dd class="col-sm-9">
+                    {% if stats.total_applications > 0 %}
+                        €{{ "%.2f"|format(ad.budget / stats.total_applications) }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </dd>
+                {% endif %}
+                
+                <dt class="col-sm-3">Создана:</dt>
+                <dd class="col-sm-9">{{ ad.created_at.strftime('%d.%m.%Y %H:%M') }}</dd>
+            </dl>
+            
+            <div class="mt-3">
+                <a href="{{ url_for('simple_ad_leads', ad_id=ad.id) }}" class="btn btn-primary">
+                    <i class="bi bi-people"></i> Список лидов
+                </a>
+                <a href="{{ url_for('export_simple_ad_leads', ad_id=ad.id) }}" class="btn btn-success">
+                    <i class="bi bi-download"></i> Экспорт в CSV
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Данные для графика
+const dailyData = {{ daily_stats|tojson }};
+
+// Подготавливаем данные
+const labels = dailyData.map(d => d.date).reverse();
+const startsData = dailyData.map(d => d.starts).reverse();
+const applicationsData = dailyData.map(d => d.applications).reverse();
+
+// Создаем график
+const ctx = document.getElementById('dailyChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Старты',
+            data: startsData,
+            borderColor: 'rgb(54, 162, 235)',
+            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+            tension: 0.1
+        }, {
+            label: 'Заявки',
+            data: applicationsData,
+            borderColor: 'rgb(75, 192, 192)',
+            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            title: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+function copyLink() {
+    const link = document.querySelector('input[readonly]').value;
+    navigator.clipboard.writeText(link).then(() => {
+        alert('Ссылка скопирована!');
+    });
+}
+</script>
+{% endblock %}
