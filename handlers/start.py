@@ -22,10 +22,7 @@ from utils import messages
 from utils.db_texts import get_text
 from utils.datetime_utils import normalize_datetime, get_current_datetime
 
-# Добавляем для Facebook интеграции
-import sys
-sys.path.append('/home/Lastbot/admin_panel')
-from facebook_module.models import save_user_click
+from handlers.facebook_utils import save_user_fbclid
 
 router = Router(name="start")
 logger = logging.getLogger(__name__)
