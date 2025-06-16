@@ -11,7 +11,7 @@ from io import StringIO
 def register_simple_ads_routes(app, get_db_connection):
     """Регистрация маршрутов для простых рекламных ссылок"""
     
-    @app.route('/simple-ads')
+    @app.route('/simple-ads/')
     @login_required
     def simple_ads_dashboard():
         """Главная страница рекламных ссылок"""

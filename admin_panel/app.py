@@ -1999,9 +1999,18 @@ except Exception as e:
 
 
 # Регистрируем маршруты простых рекламных ссылок
+print("Registering simple ads routes...")
 register_simple_ads_routes(app, get_db_connection)
+print("Simple ads routes registered!")
 
 # Регистрируем маршруты простых рекламных ссылок
+
+@app.route('/simple-ads-test')
+@login_required
+def simple_ads_test():
+    """Тестовый маршрут для проверки"""
+    return "Simple Ads Module is Working!"
+
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
