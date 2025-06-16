@@ -270,7 +270,7 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         try:
             def send_fb_conversion():
                 try:
-            pass  # Временно отключено
+                    pass  # Временно отключено
                     #send_facebook_conversion_sync(application_id, user_id)
                 except Exception as e:
                     logger.error(f"Error sending FB conversion: {e}")
