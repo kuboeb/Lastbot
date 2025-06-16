@@ -23,54 +23,44 @@ def get_db_connection():
         password=os.getenv('DB_PASSWORD', 'kuboeb1A')
     )
 
-def create_facebook_tables():
-    """Создание таблиц для Facebook трекинга"""
+def check_facebook_tables():
+    """Проверка существования таблиц для Facebook трекинга"""
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        # Таблица для хранения Facebook click ID
+        # Проверяем существование таблиц
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS user_clicks (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                click_id VARCHAR(255) NOT NULL,
-                click_type VARCHAR(50) DEFAULT 'fbclid',
-                raw_params TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, click_type)
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'user_clicks'
             );
         """)
+        user_clicks_exists = cur.fetchone()[0]
         
-        # Таблица логов конверсий Facebook
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS facebook_conversions (
-                id SERIAL PRIMARY KEY,
-                application_id INTEGER REFERENCES applications(id),
-                event_id VARCHAR(255) UNIQUE,
-                event_name VARCHAR(50) DEFAULT 'Lead',
-                pixel_id VARCHAR(50),
-                status VARCHAR(20), -- success, failed, pending
-                request_data JSONB,
-                response_data JSONB,
-                error_message TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'facebook_conversions'
             );
         """)
+        fb_conversions_exists = cur.fetchone()[0]
         
-        # Индексы для быстрого поиска
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_user_clicks_user_id ON user_clicks(user_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_fb_conversions_app_id ON facebook_conversions(application_id);")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_fb_conversions_status ON facebook_conversions(status);")
-        
-        conn.commit()
-        print("✅ Facebook таблицы созданы успешно")
+        if user_clicks_exists and fb_conversions_exists:
+            print("✅ Facebook таблицы существуют")
+        else:
+            print("⚠️ Некоторые таблицы отсутствуют")
+            
     except Exception as e:
-        print(f"❌ Ошибка создания таблиц: {e}")
-        conn.rollback()
+        print(f"❌ Ошибка проверки таблиц: {e}")
     finally:
         cur.close()
         conn.close()
+
+# Вызываем проверку вместо создания
+check_facebook_tables()
 
 def save_user_click(user_id, click_id, click_type='fbclid', raw_params=None):
     """Сохранение click ID пользователя"""
@@ -135,7 +125,7 @@ def save_conversion_log(application_id, event_id, request_data, response_data=No
         """, (
             application_id, 
             event_id,
-            request_data.get('pixel_id'),
+            request_data.get('pixel_id') if isinstance(request_data, dict) else None,
             status,
             json.dumps(request_data),
             json.dumps(response_data) if response_data else None,
@@ -157,6 +147,18 @@ def get_facebook_conversions(filters=None):
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     
+    # Сначала проверим, есть ли вообще Facebook источники
+    cur.execute("""
+        SELECT COUNT(*) as count FROM traffic_sources WHERE platform = 'facebook'
+    """)
+    fb_sources_count = cur.fetchone()['count']
+    
+    if fb_sources_count == 0:
+        # Если нет Facebook источников, возвращаем пустой результат
+        cur.close()
+        conn.close()
+        return []
+    
     query = """
         SELECT 
             fc.*,
@@ -170,7 +172,7 @@ def get_facebook_conversions(filters=None):
         JOIN applications a ON fc.application_id = a.id
         JOIN bot_users bu ON a.user_id = bu.user_id
         LEFT JOIN traffic_sources ts ON bu.source_id = ts.id
-        WHERE ts.platform = 'facebook'
+        WHERE 1=1
     """
     
     # Добавляем фильтры
@@ -232,10 +234,14 @@ def get_facebook_stats():
             ts.id as source_id,
             COUNT(fc.id) as total_conversions,
             COUNT(CASE WHEN fc.status = 'success' THEN 1 END) as success_count,
-            ROUND(
-                COUNT(CASE WHEN fc.status = 'success' THEN 1 END)::numeric / 
-                NULLIF(COUNT(fc.id), 0) * 100, 1
-            ) as success_rate
+            CASE 
+                WHEN COUNT(fc.id) > 0 THEN
+                    ROUND(
+                        COUNT(CASE WHEN fc.status = 'success' THEN 1 END)::numeric / 
+                        COUNT(fc.id) * 100, 1
+                    )
+                ELSE 0
+            END as success_rate
         FROM traffic_sources ts
         LEFT JOIN bot_users bu ON ts.id = bu.source_id
         LEFT JOIN applications a ON bu.user_id = a.user_id
