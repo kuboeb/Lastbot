@@ -651,85 +651,85 @@ def export_users():
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required
 def delete_user(user_id):
-    """Полное каскадное удаление пользователя"""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
+    """Удаление пользователя со всеми связанными данными"""
     try:
-        # Проверяем существование пользователя
-        cur.execute("SELECT username FROM bot_users WHERE user_id = %s", (user_id,))
-        user = cur.fetchone()
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
         
-        if not user:
-            return jsonify({'status': 'error', 'message': 'Пользователь не найден'}), 404
+        # Вызываем функцию каскадного удаления
+        cur.execute("SELECT delete_user_cascade(%s)", (user_id,))
+        result = cur.fetchone()
         
-        username = user.get('username', f'ID: {user_id}')
-        
-        # Удаляем в правильном порядке с учетом всех зависимостей
-        # 1. Сначала удаляем логи интеграций для заявок этого пользователя
-        cur.execute("""
-            DELETE FROM integration_logs 
-            WHERE application_id IN (
-                SELECT id FROM applications WHERE user_id = %s
-            )
-        """, (user_id,))
-        
-        # 2. Удаляем комментарии к заявкам
-        cur.execute("""
-            DELETE FROM application_comments 
-            WHERE application_id IN (
-                SELECT id FROM applications WHERE user_id = %s
-            )
-        """, (user_id,))
-        
-        # 3. Удаляем user_actions
-        cur.execute("DELETE FROM user_actions WHERE user_id = %s", (user_id,))
-        
-        # 4. Удаляем tracking_events
-        cur.execute("DELETE FROM tracking_events WHERE user_id = %s", (user_id,))
-        
-        # 5. Удаляем user_clicks и user_click_ids
-        cur.execute("DELETE FROM user_clicks WHERE user_id = %s", (user_id,))
-        cur.execute("DELETE FROM user_click_ids WHERE user_id = %s", (user_id,))
-        
-        # 6. Удаляем broadcast_recipients
-        cur.execute("DELETE FROM broadcast_recipients WHERE user_id = %s", (user_id,))
-        
-        # 7. Удаляем operator_messages
-        cur.execute("DELETE FROM operator_messages WHERE user_id = %s", (user_id,))
-        
-        # 8. Удаляем conversion_logs
-        cur.execute("DELETE FROM conversion_logs WHERE user_id = %s", (user_id,))
-        
-        # 9. Удаляем inline_states
-        cur.execute("DELETE FROM inline_states WHERE user_id = %s", (user_id,))
-        
-        # 10. Удаляем referrals
-        cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
-        
-        # 11. Обновляем applications - убираем referrer_id
-        cur.execute("UPDATE applications SET referrer_id = NULL WHERE referrer_id = %s", (user_id,))
-        
-        # 12. Теперь можем удалить заявки
-        cur.execute("DELETE FROM applications WHERE user_id = %s", (user_id,))
-        
-        # 13. Наконец удаляем самого пользователя
-        cur.execute("DELETE FROM bot_users WHERE user_id = %s", (user_id,))
-        
+        if result:
+            message = result[0]
+        else:
+            message = f"Пользователь {user_id} удален"
+            
         conn.commit()
+        cur.close()
+        conn.close()
         
         return jsonify({
+            'success': True,
             'status': 'success',
-            'message': f'Пользователь {username} и все связанные данные удалены'
+            'message': message
         })
         
     except Exception as e:
-        conn.rollback()
-        print(f"DELETE_USER ERROR: {str(e)}")
-        return jsonify({'status': 'error', 'message': f'Ошибка при удалении: {str(e)}'}), 500
-    finally:
+        import traceback
+        error_msg = f'Ошибка при удалении: {str(e)}'
+        print(f"ERROR in delete_user: {error_msg}")
+        print(traceback.format_exc())
+        
+        # Откатываем транзакцию при ошибке
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+            
+        return jsonify({
+            'success': False,
+            'status': 'error',
+            'message': error_msg
+        }), 500
+def delete_user(user_id):
+    """Удаление пользователя со всеми связанными данными"""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # Вызываем функцию каскадного удаления
+        cur.execute("SELECT delete_user_cascade(%s)", (user_id,))
+        result = cur.fetchone()
+        
+        if result:
+            message = result[0]
+        else:
+            message = f"Пользователь {user_id} удален"
+            
+        conn.commit()
         cur.close()
         conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': message
+        })
+        
+    except Exception as e:
+        import traceback
+        error_msg = f'Ошибка при удалении: {str(e)}'
+        print(f"ERROR in delete_user: {error_msg}")
+        print(traceback.format_exc())
+        
+        # Откатываем транзакцию при ошибке
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+            
+        return jsonify({
+            'success': False,
+            'error': error_msg
+        }), 500
 @app.route('/editor')
 @login_required
 def text_editor():
