@@ -136,6 +136,10 @@ async function sendMailing(mailingId) {
 async function deleteMailing(mailingId) {
     if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) return;
     
+    // Находим кнопку, которая была нажата
+    const button = document.querySelector(`button[onclick="deleteMailing(${mailingId})"]`);
+    const row = button.closest('tr');
+    
     try {
         const response = await fetch(`/mailing/${mailingId}/delete`, {
             method: 'POST',
@@ -145,7 +149,6 @@ async function deleteMailing(mailingId) {
         const result = await response.json();
         if (result.success) {
             // Плавно скрываем строку
-            const row = event.target.closest('tr');
             row.style.transition = 'opacity 0.3s';
             row.style.opacity = '0';
             setTimeout(() => {
