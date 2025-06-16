@@ -270,12 +270,14 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
 
         # Проверяем RichAds
         try:
-            if source_id:
+            # Получаем source_id из данных пользователя
+            user_source_id = user.source_id if user else None
+            if user_source_id:
                 # Используем синхронное подключение для проверки платформы
                 import psycopg2
                 sync_conn = psycopg2.connect(DATABASE_URL)
                 sync_cur = sync_conn.cursor()
-                sync_cur.execute("SELECT platform FROM traffic_sources WHERE id = %s", (source_id,))
+                sync_cur.execute("SELECT platform FROM traffic_sources WHERE id = %s", (user_source_id,))
                 source_result = sync_cur.fetchone()
                 sync_cur.close()
                 sync_conn.close()
