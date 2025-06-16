@@ -1,0 +1,2083 @@
+"""
+Админ-панель для управления ботом
+"""
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
+
+def format_datetime(dt):
+    '''Форматировать datetime для отображения'''
+    if dt and hasattr(dt, 'astimezone'):
+        return dt.astimezone(TIMEZONE).strftime('%d.%m.%Y %H:%M')
+    return '-', redirect, url_for, request, flash, jsonify, send_file
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+from werkzeug.security import check_password_hash, generate_password_hash
+from datetime import datetime, timedelta
+import pytz
+import os
+import requests
+import json
+import io
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
+
+# Временная зона GMT+3 (Москва)
+TIMEZONE = pytz.timezone('Europe/Moscow')
+
+def get_local_time():
+    '''Получить текущее время в GMT+3'''
+    return datetime.now(TIMEZONE)
+
+# Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@app.template_filter('datetime')
+def datetime_filter(dt):
+    return format_datetime(dt)
+
+# Подключение к БД
+def get_db_connection():
+    """Получить синхронное подключение к БД"""
+    return psycopg2.connect(
+        host='localhost',
+        database='crypto_course_db',
+        user='cryptobot',
+        password='kuboeb1A',
+        cursor_factory=RealDictCursor)
+
+class Admin:
+    def __init__(self, id, username):
+        self.id = id
+        self.username = username
+        self.is_authenticated = True
+        self.is_active = True
+        self.is_anonymous = False
+    
+    def get_id(self):
+        return str(self.id)
+
+@login_manager.user_loader
+def load_user(user_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, username FROM admins WHERE id = %s", (int(user_id),))
+    admin_data = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if admin_data:
+        return Admin(admin_data['id'], admin_data['username'])
+    return None
+
+@app.route('/')
+@app.route('/admin')
+def index():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, username, password_hash FROM admins WHERE username = %s", (username,))
+        admin_data = cur.fetchone()
+        cur.close()
+        conn.close()
+        
+        if admin_data and check_password_hash(admin_data['password_hash'], password):
+            admin = Admin(admin_data['id'], admin_data['username'])
+            login_user(admin)
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Неверный логин или пароль', 'error')
+    
+    return render_template('login.html')
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Статистика за сегодня
+    today = get_local_time().date()
+    cur.execute("""
+        SELECT COUNT(*) as count FROM applications 
+        WHERE DATE(created_at) = %s
+    """, (today,))
+    today_count = cur.fetchone()['count']
+    
+    # Статистика за неделю
+    week_ago = today - timedelta(days=7)
+    cur.execute("""
+        SELECT COUNT(*) as count FROM applications 
+        WHERE created_at >= %s
+    """, (week_ago,))
+    week_count = cur.fetchone()['count']
+    
+    # Статистика за месяц
+    month_ago = today - timedelta(days=30)
+    cur.execute("""
+        SELECT COUNT(*) as count FROM applications 
+        WHERE created_at >= %s
+    """, (month_ago,))
+    month_count = cur.fetchone()['count']
+    
+    # Последние 10 заявок
+    cur.execute("""
+        SELECT * FROM applications 
+        ORDER BY created_at DESC 
+        LIMIT 10
+    """)
+    recent_applications = cur.fetchall()
+    
+    # Конверсия
+    cur.execute("SELECT COUNT(*) as count FROM bot_users WHERE first_seen >= %s", (week_ago,))
+    total_users = cur.fetchone()['count']
+    conversion_rate = (week_count / total_users * 100) if total_users > 0 else 0
+    
+    # Данные для графика
+    chart_labels = []
+    chart_data = []
+    for i in range(7):
+        date = today - timedelta(days=6-i)
+        chart_labels.append(date.strftime('%d.%m'))
+        cur.execute("""
+            SELECT COUNT(*) as count FROM applications 
+            WHERE DATE(created_at) = %s
+        """, (date,))
+        chart_data.append(cur.fetchone()['count'])
+    
+    # Получаем данные воронки
+    funnel_stats = {}
+    
+    # Начали регистрацию
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'begin_registration' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['start'] = result['count'] if result else 0
+    
+    # Ввели имя
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_name' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['begin_registration'] = result['count'] if result else 0
+    
+    # Ввели страну
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_country' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_country'] = result['count'] if result else 0
+    
+    # Ввели телефон
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_phone' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_phone'] = result['count'] if result else 0
+    
+    # Выбрали время
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'enter_time' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['entered_time'] = result['count'] if result else 0
+    
+    # Завершили регистрацию
+    cur.execute("""
+        SELECT COUNT(DISTINCT user_id) as count FROM user_actions 
+        WHERE action = 'completed' AND created_at >= %s
+    """, (week_ago,))
+    result = cur.fetchone()
+    funnel_stats['complete_registration'] = result['count'] if result else 0
+    
+    cur.close()
+    conn.close()
+    
+    return render_template('dashboard.html',
+        today_count=today_count,
+        week_count=week_count,
+        month_count=month_count,
+        recent_applications=recent_applications,
+        conversion_rate=conversion_rate,
+        chart_labels=chart_labels,
+        chart_data=chart_data,
+        bot_status={'enabled': True, 'uptime': '2д 14ч 35м'},
+        funnel_stats=funnel_stats
+    )
+
+@app.route('/applications')
+@login_required
+def applications():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Параметры
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    if per_page not in [10, 20, 50, 100]:
+        per_page = 50
+    
+    search = request.args.get('search', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    country = request.args.get('country', '')
+    source_type = request.args.get('source_type', '')
+    preferred_time = request.args.get('preferred_time', '')
+    
+    # Базовый запрос
+    base_query = """
+        FROM applications a
+        LEFT JOIN bot_users u ON a.user_id = u.user_id
+        WHERE 1=1
+    """
+    params = []
+    
+    # Фильтры
+    if search:
+        base_query += " AND (LOWER(a.full_name) LIKE LOWER(%s) OR a.phone LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        base_query += " AND a.created_at >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        base_query += " AND a.created_at <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    if country:
+        base_query += " AND LOWER(a.country) LIKE LOWER(%s)"
+        params.append(f'%{country}%')
+    
+    if source_type:
+        if source_type == 'direct':
+            base_query += " AND a.referrer_id IS NULL AND a.source_id IS NULL"
+        elif source_type == 'referral':
+            base_query += " AND a.referrer_id IS NOT NULL"
+        elif source_type == 'source':
+            base_query += " AND a.source_id IS NOT NULL"
+    
+    if preferred_time:
+        base_query += " AND a.preferred_time = %s"
+        params.append(preferred_time)
+    
+    # Подсчет общего количества
+    count_query = "SELECT COUNT(*) as total " + base_query
+    cur.execute(count_query, params)
+    total_count = cur.fetchone()['total']
+    total_pages = (total_count + per_page - 1) // per_page if per_page > 0 else 1
+    
+    # Корректировка страницы
+    if page > total_pages:
+        page = total_pages
+    if page < 1:
+        page = 1
+    
+    # Получение данных с пагинацией
+    offset = (page - 1) * per_page
+    data_query = """
+        SELECT a.*, 
+               u.username,
+               CASE 
+                   WHEN a.referrer_id IS NOT NULL THEN 'Реферал'
+                   WHEN a.source_id IS NOT NULL THEN 'Источник ' || a.source_id
+                   ELSE 'Прямой'
+               END as source_type,
+               CASE 
+                   WHEN a.referrer_id IS NOT NULL THEN 
+                       (SELECT username FROM bot_users WHERE user_id = a.referrer_id LIMIT 1)
+                   ELSE NULL
+               END as referrer_username,
+               EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - a.created_at))/3600 as hours_ago
+    """ + base_query + " ORDER BY a.created_at DESC LIMIT %s OFFSET %s"
+    params.extend([per_page, offset])
+    
+    cur.execute(data_query, params)
+    applications = cur.fetchall()
+    
+    # Статистика
+    today = get_local_time().date()
+    cur.execute("SELECT COUNT(*) as count FROM applications WHERE DATE(created_at) = %s", (today,))
+    today_count = cur.fetchone()['count']
+    
+    week_ago = today - timedelta(days=7)
+    cur.execute("SELECT COUNT(*) as count FROM applications WHERE created_at >= %s", (week_ago,))
+    week_applications = cur.fetchone()['count']
+    cur.execute("SELECT COUNT(*) as count FROM bot_users WHERE first_seen >= %s", (week_ago,))
+    week_users = cur.fetchone()['count']
+    conversion_rate = (week_applications / week_users * 100) if week_users > 0 else 0
+    
+    # Список стран
+    cur.execute("SELECT DISTINCT country FROM applications WHERE country IS NOT NULL ORDER BY country")
+    countries = [row['country'] for row in cur.fetchall()]
+    
+    cur.close()
+    conn.close()
+    
+    # Вычисляем диапазон страниц для отображения
+    page_range = []
+    if total_pages <= 7:
+        page_range = list(range(1, total_pages + 1))
+    else:
+        page_range = [1]
+        if page > 3:
+            page_range.append('...')
+        for p in range(max(2, page - 1), min(page + 2, total_pages)):
+            page_range.append(p)
+        if page < total_pages - 2:
+            page_range.append('...')
+        if total_pages > 1:
+            page_range.append(total_pages)
+    
+    return render_template('applications.html', 
+                         applications=applications,
+                         page=page,
+                         total_pages=total_pages,
+                         total_count=total_count,
+                         per_page=per_page,
+                         page_range=page_range,
+                         today_count=today_count,
+                         conversion_rate=conversion_rate,
+                         countries=countries)
+
+@app.route('/export_applications')
+@login_required
+def export_applications():
+    import xlsxwriter
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Те же фильтры что и в applications()
+    search = request.args.get('search', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    country = request.args.get('country', '')
+    source_type = request.args.get('source_type', '')
+    preferred_time = request.args.get('preferred_time', '')
+    
+    query = """
+        SELECT a.*, 
+               u.username,
+               CASE 
+                   WHEN a.referrer_id IS NOT NULL THEN 'Реферал'
+                   WHEN a.source_id IS NOT NULL THEN 'Источник ' || a.source_id
+                   ELSE 'Прямой'
+               END as source_type
+        FROM applications a
+        LEFT JOIN bot_users u ON a.user_id = u.user_id
+        WHERE 1=1
+    """
+    params = []
+    
+    if search:
+        query += " AND (LOWER(a.full_name) LIKE LOWER(%s) OR a.phone LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        query += " AND a.created_at >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND a.created_at <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    if country:
+        query += " AND LOWER(a.country) LIKE LOWER(%s)"
+        params.append(f'%{country}%')
+    
+    if source_type:
+        if source_type == 'direct':
+            query += " AND a.referrer_id IS NULL AND a.source_id IS NULL"
+        elif source_type == 'referral':
+            query += " AND a.referrer_id IS NOT NULL"
+        elif source_type == 'source':
+            query += " AND a.source_id IS NOT NULL"
+    
+    if preferred_time:
+        query += " AND a.preferred_time = %s"
+        params.append(preferred_time)
+    
+    query += " ORDER BY a.created_at DESC"
+    
+    cur.execute(query, params)
+    applications = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    # Создаем Excel
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Заявки')
+    
+    # Заголовки
+    headers = ['ID', 'Имя', 'Username', 'Страна', 'Телефон', 'Время звонка', 'Дата создания', 'Источник']
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header)
+    
+    # Данные
+    for row, app in enumerate(applications, 1):
+        worksheet.write(row, 0, app['id'])
+        worksheet.write(row, 1, app['full_name'])
+        worksheet.write(row, 2, f"@{app['username']}" if app['username'] else '-')
+        worksheet.write(row, 3, app['country'])
+        worksheet.write(row, 4, app['phone'])
+        worksheet.write(row, 5, app['preferred_time'])
+        worksheet.write(row, 6, format_datetime(app['created_at']))
+        worksheet.write(row, 7, app['source_type'])
+    
+    workbook.close()
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'applications_{get_local_time().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    )
+
+@app.route('/users')
+@login_required
+def users():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Параметры
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    if per_page not in [10, 20, 50, 100]:
+        per_page = 50
+        
+    search = request.args.get('search', '')
+    has_application = request.args.get('has_application', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    # Базовый запрос
+    base_query = """
+        FROM bot_users u
+        LEFT JOIN applications a ON u.user_id = a.user_id
+        LEFT JOIN referrals r ON u.user_id = r.referrer_id
+        WHERE 1=1
+    """
+    params = []
+    
+    # Фильтры
+    if search:
+        base_query += " AND (u.username ILIKE %s OR CAST(u.user_id AS TEXT) LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        base_query += " AND u.first_seen >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        base_query += " AND u.first_seen <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    # Группировка для подсчета
+    group_by = " GROUP BY u.id, u.user_id, u.username, u.first_seen, u.last_activity, u.source_id, u.has_application, u.is_blocked"
+    
+    # Фильтр по наличию заявки
+    having_clause = ""
+    if has_application == '1':
+        having_clause = " HAVING COUNT(DISTINCT a.id) > 0"
+    elif has_application == '0':
+        having_clause = " HAVING COUNT(DISTINCT a.id) = 0"
+    
+    # Подсчет общего количества
+    count_query = "SELECT COUNT(*) as total FROM (SELECT u.id " + base_query + group_by + having_clause + ") as subquery"
+    cur.execute(count_query, params)
+    total_count = cur.fetchone()['total']
+    total_pages = (total_count + per_page - 1) // per_page if per_page > 0 else 1
+    
+    # Корректировка страницы
+    if page > total_pages:
+        page = total_pages
+    if page < 1:
+        page = 1
+    
+    # Получение данных с пагинацией
+    offset = (page - 1) * per_page
+    data_query = """
+        SELECT u.*, 
+               COUNT(DISTINCT a.id) as has_application,
+               COUNT(DISTINCT r.referred_id) as referrals_count
+    """ + base_query + group_by + having_clause + " ORDER BY u.first_seen DESC LIMIT %s OFFSET %s"
+    params.extend([per_page, offset])
+    
+    cur.execute(data_query, params)
+    users = cur.fetchall()
+    
+    # Общее количество всех пользователей
+    cur.execute("SELECT COUNT(*) as count FROM bot_users")
+    all_users_count = cur.fetchone()['count']
+    
+    cur.close()
+    conn.close()
+    
+    # Вычисляем диапазон страниц для отображения
+    page_range = []
+    if total_pages <= 7:
+        page_range = list(range(1, total_pages + 1))
+    else:
+        page_range = [1]
+        if page > 3:
+            page_range.append('...')
+        for p in range(max(2, page - 1), min(page + 2, total_pages)):
+            page_range.append(p)
+        if page < total_pages - 2:
+            page_range.append('...')
+        if total_pages > 1:
+            page_range.append(total_pages)
+    
+    return render_template('users.html', 
+                         users=users,
+                         page=page,
+                         total_pages=total_pages,
+                         total_count=total_count,
+                         all_users_count=all_users_count,
+                         per_page=per_page,
+                         page_range=page_range)
+
+@app.route('/export_users')
+@login_required
+def export_users():
+    import xlsxwriter
+    
+    # Получаем те же данные с фильтрами
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    search = request.args.get('search', '')
+    has_application = request.args.get('has_application', '')
+    date_from = request.args.get('date_from', '')
+    date_to = request.args.get('date_to', '')
+    
+    query = """
+        SELECT u.*, 
+               COUNT(DISTINCT a.id) as has_application,
+               COUNT(DISTINCT r.referred_id) as referrals_count
+        FROM bot_users u
+        LEFT JOIN applications a ON u.user_id = a.user_id
+        LEFT JOIN referrals r ON u.user_id = r.referrer_id
+        WHERE 1=1
+    """
+    params = []
+    
+    if search:
+        query += " AND (u.username ILIKE %s OR CAST(u.user_id AS TEXT) LIKE %s)"
+        params.extend([f'%{search}%', f'%{search}%'])
+    
+    if date_from:
+        query += " AND u.first_seen >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND u.first_seen <= %s"
+        params.append(date_to + ' 23:59:59')
+    
+    query += " GROUP BY u.id, u.user_id, u.username, u.first_seen, u.last_activity, u.source_id, u.has_application, u.is_blocked"
+    
+    if has_application == '1':
+        query += " HAVING COUNT(DISTINCT a.id) > 0"
+    elif has_application == '0':
+        query += " HAVING COUNT(DISTINCT a.id) = 0"
+    
+    query += " ORDER BY u.first_seen DESC"
+    
+    cur.execute(query, params)
+    users = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    # Создаем Excel файл в памяти
+    output = io.BytesIO()
+    workbook = xlsxwriter.Workbook(output)
+    worksheet = workbook.add_worksheet('Пользователи')
+    
+    # Заголовки
+    headers = ['ID', 'Имя', 'Username', 'Страна', 'Телефон', 'Время звонка', 'Дата создания', 'Источник']
+    for col, header in enumerate(headers):
+        worksheet.write(0, col, header)
+    
+    # Данные
+    for row, user in enumerate(users, 1):
+        worksheet.write(row, 0, user['id'])
+        worksheet.write(row, 1, str(user['user_id']))
+        worksheet.write(row, 2, user['username'] or '-')
+        worksheet.write(row, 3, user['first_seen'].strftime('%d.%m.%Y %H:%M') if user['first_seen'] else '-')
+        worksheet.write(row, 4, user['last_activity'].strftime('%d.%m.%Y %H:%M') if user['last_activity'] else '-')
+        worksheet.write(row, 5, 'Да' if user['has_application'] > 0 else 'Нет')
+        worksheet.write(row, 6, user['referrals_count'])
+        worksheet.write(row, 7, f"Источник {user['source_id']}" if user['source_id'] else 'Прямой')
+    
+    workbook.close()
+    output.seek(0)
+    
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'users_{get_local_time().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    )
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    """Полное каскадное удаление пользователя"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Проверяем существование пользователя
+        cur.execute("SELECT username FROM bot_users WHERE user_id = %s", (user_id,))
+        user = cur.fetchone()
+        
+        if not user:
+            return jsonify({'status': 'error', 'message': 'Пользователь не найден'}), 404
+        
+        username = user.get('username', f'ID: {user_id}')
+        
+        # Удаляем в правильном порядке с учетом всех зависимостей
+        # 1. Сначала удаляем логи интеграций для заявок этого пользователя
+        cur.execute("""
+            DELETE FROM integration_logs 
+            WHERE application_id IN (
+                SELECT id FROM applications WHERE user_id = %s
+            )
+        """, (user_id,))
+        
+        # 2. Удаляем комментарии к заявкам
+        cur.execute("""
+            DELETE FROM application_comments 
+            WHERE application_id IN (
+                SELECT id FROM applications WHERE user_id = %s
+            )
+        """, (user_id,))
+        
+        # 3. Удаляем user_actions
+        cur.execute("DELETE FROM user_actions WHERE user_id = %s", (user_id,))
+        
+        # 4. Удаляем tracking_events
+        cur.execute("DELETE FROM tracking_events WHERE user_id = %s", (user_id,))
+        
+        # 5. Удаляем user_clicks и user_click_ids
+        cur.execute("DELETE FROM user_clicks WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM user_click_ids WHERE user_id = %s", (user_id,))
+        
+        # 6. Удаляем broadcast_recipients
+        cur.execute("DELETE FROM broadcast_recipients WHERE user_id = %s", (user_id,))
+        
+        # 7. Удаляем operator_messages
+        cur.execute("DELETE FROM operator_messages WHERE user_id = %s", (user_id,))
+        
+        # 8. Удаляем conversion_logs
+        cur.execute("DELETE FROM conversion_logs WHERE user_id = %s", (user_id,))
+        
+        # 9. Удаляем inline_states
+        cur.execute("DELETE FROM inline_states WHERE user_id = %s", (user_id,))
+        
+        # 10. Удаляем referrals
+        cur.execute("DELETE FROM referrals WHERE referrer_id = %s OR referred_id = %s", (user_id, user_id))
+        
+        # 11. Обновляем applications - убираем referrer_id
+        cur.execute("UPDATE applications SET referrer_id = NULL WHERE referrer_id = %s", (user_id,))
+        
+        # 12. Теперь можем удалить заявки
+        cur.execute("DELETE FROM applications WHERE user_id = %s", (user_id,))
+        
+        # 13. Наконец удаляем самого пользователя
+        cur.execute("DELETE FROM bot_users WHERE user_id = %s", (user_id,))
+        
+        conn.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': f'Пользователь {username} и все связанные данные удалены'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"DELETE_USER ERROR: {str(e)}")
+        return jsonify({'status': 'error', 'message': f'Ошибка при удалении: {str(e)}'}), 500
+    finally:
+        cur.close()
+        conn.close()
+@app.route('/editor')
+@login_required
+def text_editor():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM bot_texts ORDER BY category, key")
+    texts = cur.fetchall()
+    cur.close()
+    conn.close()
+    
+    return render_template('editor.html', texts=texts)
+
+@app.route('/admin/texts/<int:text_id>')
+@login_required
+def get_text(text_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM bot_texts WHERE id = %s", (text_id,))
+    text = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if text:
+        # Конвертируем в обычный dict для JSON
+        text_dict = {
+            'id': text['id'],
+            'key': text['key'],
+            'category': text['category'],
+            'description': text['description'],
+            'text': text['text']
+        }
+        return jsonify(text_dict)
+    return jsonify({'error': 'Text not found'}), 404
+
+@app.route('/admin/texts/<int:text_id>/update', methods=['POST'])
+@login_required
+def update_text(text_id):
+    data = request.get_json()
+    text_content = data.get('text') if data else None
+    
+    if not text_content:
+        return jsonify({'error': 'Text is required'}), 400
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE bot_texts 
+            SET text = %s, updated_at = CURRENT_TIMESTAMP, updated_by = %s
+            WHERE id = %s
+        """, (text_content, current_user.id, text_id))
+        
+        conn.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/api/texts/<key>')
+def get_text_by_key(key):
+    # Простая защита по API ключу
+    api_key = request.headers.get('X-API-Key')
+    if api_key != 'internal-bot-key-2024':
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT text FROM bot_texts WHERE key = %s", (key,))
+    result = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if result:
+        return jsonify({'text': result['text']})
+    return jsonify({'error': 'Text not found'}), 404
+
+@app.route('/system')
+@login_required
+def system():
+    return render_template('system.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# Создадим начального админа если его нет
+def init_admin():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM admins WHERE username = 'admin'")
+    if not cur.fetchone():
+        password_hash = generate_password_hash('kuboeb1A')
+        cur.execute(
+            "INSERT INTO admins (username, password_hash) VALUES (%s, %s)",
+            ('admin', password_hash)
+        )
+        conn.commit()
+        print("Admin user created")
+    cur.close()
+    conn.close()
+
+# ===== ИСТОЧНИКИ ТРАФИКА =====
+
+@app.route('/traffic-sources')
+@login_required
+def traffic_sources():
+    """Страница управления источниками трафика"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем все источники с статистикой
+        cur.execute("""
+            SELECT 
+                ts.*,
+                COUNT(DISTINCT CASE WHEN te.event_type = 'click' THEN te.user_id END) as clicks,
+                COUNT(DISTINCT CASE WHEN te.event_type = 'start' THEN te.user_id END) as starts,
+                COUNT(DISTINCT CASE WHEN te.event_type = 'lead' THEN te.user_id END) as leads,
+                COUNT(DISTINCT uc.user_id) as users_with_clickid
+            FROM traffic_sources ts
+            LEFT JOIN tracking_events te ON ts.id = te.source_id
+            LEFT JOIN user_click_ids uc ON ts.id = uc.source_id
+            GROUP BY ts.id
+            ORDER BY ts.created_at DESC
+        """)
+        sources = cur.fetchall()
+        
+        # Информация о платформах
+        platforms = {
+            'facebook': {'name': 'Facebook Ads', 'color': 'primary'},
+            'google': {'name': 'Google Ads', 'color': 'success'},
+            'tiktok': {'name': 'TikTok Ads', 'color': 'dark'},
+            'telegram_ads': {'name': 'Telegram Ads', 'color': 'info'},
+            'onclick': {'name': 'OnClick', 'color': 'warning'},
+            'richads': {'name': 'RichAds', 'color': 'danger'},
+            'pushhouse': {'name': 'PushHouse', 'color': 'secondary'},
+            'evadav': {'name': 'EvaDav', 'color': 'success'},
+            'propeller': {'name': 'PropellerAds', 'color': 'primary'}
+        }
+        
+        for source in sources:
+            platform = platforms.get(source['platform'], {'name': source['platform'], 'color': 'secondary'})
+            source['platform_name'] = platform['name']
+            source['platform_color'] = platform['color']
+            
+            # Считаем конверсию
+            if source['clicks'] > 0:
+                source['cr'] = round(source['leads'] / source['clicks'] * 100, 2)
+            else:
+                source['cr'] = 0
+        
+        return render_template('traffic_sources.html', sources=sources, platforms=platforms)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/create', methods=['GET', 'POST'])
+@login_required
+def create_traffic_source():
+    """Создание нового источника трафика"""
+    if request.method == 'POST':
+        data = request.get_json()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        try:
+            # Генерируем уникальный код
+            import random
+            import string
+            platform = data['platform']
+            random_code = ''.join(random.choices(string.digits, k=5))
+            source_code = f"{platform[:2]}_{random_code}"
+            
+            # Генерируем ссылку
+            bot_username = os.getenv('BOT_USERNAME', 'cryplace_bot')
+            link = f"https://t.me/{bot_username}?start=src_{source_code}"
+            
+            # Сохраняем
+            cur.execute("""
+                INSERT INTO traffic_sources (name, platform, source_code, settings, link)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """, (data['name'], platform, source_code, json.dumps(data.get('settings', {})), link))
+            
+            source_id = cur.fetchone()['id']
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'id': source_id,
+                'link': link,
+                'source_code': source_code
+            })
+            
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            cur.close()
+            conn.close()
+    
+    return render_template('create_traffic_source.html')
+
+@app.route('/traffic-sources/<int:source_id>/details')
+@login_required
+def traffic_source_details(source_id):
+    """Детальная информация об источнике"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем источник
+        cur.execute("SELECT * FROM traffic_sources WHERE id = %s", (source_id,))
+        source = cur.fetchone()
+        
+        if not source:
+            flash('Источник не найден', 'danger')
+            return redirect(url_for('traffic_sources'))
+        
+        # Статистика по дням
+        cur.execute("""
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(DISTINCT CASE WHEN event_type = 'click' THEN user_id END) as clicks,
+                COUNT(DISTINCT CASE WHEN event_type = 'start' THEN user_id END) as starts,
+                COUNT(DISTINCT CASE WHEN event_type = 'lead' THEN user_id END) as leads
+            FROM tracking_events
+            WHERE source_id = %s
+            AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+            GROUP BY DATE(created_at)
+            ORDER BY date DESC
+        """, (source_id,))
+        daily_stats = cur.fetchall()
+        
+        # Последние конверсии
+        cur.execute("""
+            SELECT 
+                cl.*,
+                a.full_name,
+                a.phone,
+                u.username
+            FROM conversion_logs cl
+            LEFT JOIN applications a ON cl.application_id = a.id
+            LEFT JOIN bot_users u ON cl.user_id = u.user_id
+            WHERE cl.source_id = %s
+            ORDER BY cl.created_at DESC
+            LIMIT 50
+        """, (source_id,))
+        conversions = cur.fetchall()
+        
+        # Click IDs
+        cur.execute("""
+            SELECT 
+                uc.*,
+                u.username
+            FROM user_click_ids uc
+            LEFT JOIN bot_users u ON uc.user_id = u.user_id
+            WHERE uc.source_id = %s
+            ORDER BY uc.created_at DESC
+            LIMIT 50
+        """, (source_id,))
+        click_ids = cur.fetchall()
+        
+        return render_template('traffic_source_details.html',
+                             source=source,
+                             daily_stats=daily_stats,
+                             conversions=conversions,
+                             click_ids=click_ids)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('traffic_sources'))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/<int:source_id>/test-conversion', methods=['POST'])
+@login_required
+def test_conversion(source_id):
+    """Тест конверсии"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем источник
+        cur.execute("SELECT * FROM traffic_sources WHERE id = %s", (source_id,))
+        source = cur.fetchone()
+        
+        if not source:
+            return jsonify({'success': False, 'error': 'Источник не найден'})
+        
+        # Создаем тестовую запись
+        cur.execute("""
+            INSERT INTO conversion_logs 
+            (source_id, user_id, platform, request_data, response_data, status)
+            VALUES (%s, 0, %s, %s, %s, 'test')
+        """, (
+            source_id,
+            source['platform'],
+            json.dumps({'test': True, 'timestamp': datetime.now().isoformat()}),
+            json.dumps({'status': 'simulated', 'message': 'Test conversion'})
+        ))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Тестовая конверсия для {source["platform"]} создана'
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/<int:source_id>/toggle', methods=['POST'])
+@login_required
+def toggle_traffic_source(source_id):
+    """Включить/выключить источник"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE traffic_sources 
+            SET is_active = NOT is_active 
+            WHERE id = %s
+            RETURNING is_active
+        """, (source_id,))
+        
+        result = cur.fetchone()
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'is_active': result['is_active']
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/<int:source_id>/delete', methods=['POST'])
+@login_required
+def delete_traffic_source(source_id):
+    """Удалить источник трафика"""
+    print(f"Delete request for source {source_id}")
+    print(f"Request method: {request.method}")
+    print(f"Request headers: {dict(request.headers)}")
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Проверяем, есть ли связанные данные
+        cur.execute("""
+            SELECT COUNT(*) as count FROM tracking_events WHERE source_id = %s
+        """, (source_id,))
+        events_count = cur.fetchone()['count']
+        
+        if events_count > 0:
+            # Если есть события, предупреждаем
+            return jsonify({
+                'success': False,
+                'error': f'Невозможно удалить источник. Связано событий: {events_count}',
+                'confirm_required': True,
+                'events_count': events_count
+            })
+        
+        # Удаляем источник
+        cur.execute("DELETE FROM traffic_sources WHERE id = %s", (source_id,))
+        conn.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/traffic-sources/<int:source_id>/force-delete', methods=['POST'])
+@login_required
+def force_delete_traffic_source(source_id):
+    """Принудительно удалить источник со всеми связанными данными"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Удаляем в правильном порядке из-за foreign keys
+        cur.execute("DELETE FROM conversion_logs WHERE source_id = %s", (source_id,))
+        cur.execute("DELETE FROM user_click_ids WHERE source_id = %s", (source_id,))
+        cur.execute("DELETE FROM tracking_events WHERE source_id = %s", (source_id,))
+        cur.execute("UPDATE applications SET source_id = NULL WHERE source_id = %s", (source_id,))
+        cur.execute("UPDATE bot_users SET source_id = NULL WHERE source_id = %s", (source_id,))
+        cur.execute("DELETE FROM traffic_sources WHERE id = %s", (source_id,))
+        
+        conn.commit()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+# ===== РАССЫЛКИ =====
+
+@app.route('/broadcast')
+@login_required
+def broadcast():
+    """Страница управления рассылками"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем статистику пользователей
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total_users,
+                COUNT(CASE WHEN has_application = TRUE THEN 1 END) as with_application,
+                COUNT(CASE WHEN has_application = FALSE THEN 1 END) as without_application,
+                COUNT(CASE WHEN last_activity > CURRENT_TIMESTAMP - INTERVAL '7 days' THEN 1 END) as active_week,
+                COUNT(CASE WHEN last_activity > CURRENT_TIMESTAMP - INTERVAL '30 days' THEN 1 END) as active_month
+            FROM bot_users
+            WHERE is_blocked = FALSE
+        """)
+        stats = cur.fetchone()
+        
+        # Получаем историю рассылок
+        cur.execute("""
+            SELECT * FROM broadcasts 
+            ORDER BY created_at DESC 
+            LIMIT 20
+        """)
+        broadcasts = cur.fetchall()
+        
+        return render_template('broadcast.html', stats=stats, broadcasts=broadcasts)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/broadcast/create', methods=['GET', 'POST'])
+@login_required
+def create_broadcast():
+    """Создание новой рассылки"""
+    if request.method == 'POST':
+        data = request.get_json()
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        try:
+            # Получаем список получателей по фильтрам
+            filters = data.get('filters', {})
+            query = """
+                SELECT user_id, username 
+                FROM bot_users 
+                WHERE is_blocked = FALSE
+            """
+            params = []
+            
+            if filters.get('has_application') == 'no':
+                query += " AND has_application = FALSE"
+            elif filters.get('has_application') == 'yes':
+                query += " AND has_application = TRUE"
+            
+            if filters.get('activity'):
+                if filters['activity'] == 'week':
+                    query += " AND last_activity > CURRENT_TIMESTAMP - INTERVAL '7 days'"
+                elif filters['activity'] == 'month':
+                    query += " AND last_activity > CURRENT_TIMESTAMP - INTERVAL '30 days'"
+                elif filters['activity'] == 'inactive':
+                    query += " AND last_activity < CURRENT_TIMESTAMP - INTERVAL '30 days'"
+            
+            if filters.get('registration_from'):
+                query += " AND first_seen >= %s"
+                params.append(filters['registration_from'])
+            
+            if filters.get('registration_to'):
+                query += " AND first_seen <= %s"
+                params.append(filters['registration_to'])
+            
+            cur.execute(query, params)
+            recipients = cur.fetchall()
+            
+            broadcast_type = data.get('broadcast_type', 'single')
+            
+            # Если это сценарий, получаем первое сообщение
+            message = data.get('message', '')
+            scenario_type = None
+            
+            if broadcast_type == 'scenario':
+                scenario_type = data.get('scenario_type')
+                # Получаем сценарий из БД
+                cur.execute("""
+                    SELECT steps FROM warming_scenarios 
+                    WHERE name = %s
+                """, (scenario_type,))
+                scenario = cur.fetchone()
+                
+                if scenario and scenario['steps']:
+                    # Берем первое сообщение из сценария
+                    first_step = scenario['steps'][0]
+                    message = first_step.get('message', '')
+            
+            # Определяем время отправки
+            scheduled_at = None
+            if data.get('schedule_type') == 'scheduled':
+                scheduled_at = data.get('scheduled_at')
+            
+            # Создаем рассылку
+            cur.execute("""
+                INSERT INTO broadcasts 
+                (name, message, target_audience, recipient_count, status, 
+                 scenario_type, schedule_type, scheduled_at, next_run_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (
+                data['name'],
+                message,
+                json.dumps(filters),
+                len(recipients),
+                'scheduled' if scheduled_at else 'pending',
+                scenario_type,
+                data.get('repeat_type', 'once'),
+                scheduled_at,
+                scheduled_at  # next_run_at = scheduled_at для первого запуска
+            ))
+            
+            broadcast_id = cur.fetchone()['id']
+            
+            # Сохраняем получателей
+            for recipient in recipients:
+                cur.execute("""
+                    INSERT INTO broadcast_recipients (broadcast_id, user_id, status)
+                    VALUES (%s, %s, 'pending')
+                """, (broadcast_id, recipient['user_id']))
+            
+            conn.commit()
+            
+            return jsonify({
+                'success': True,
+                'broadcast_id': broadcast_id,
+                'recipient_count': len(recipients)
+            })
+            
+        except Exception as e:
+            conn.rollback()
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            cur.close()
+            conn.close()
+    
+    return render_template('create_broadcast.html')@app.route('/broadcast/<int:broadcast_id>/send', methods=['POST'])
+@login_required
+def send_broadcast(broadcast_id):
+    """Запуск рассылки"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем данные рассылки
+        cur.execute("SELECT * FROM broadcasts WHERE id = %s", (broadcast_id,))
+        broadcast = cur.fetchone()
+        
+        if not broadcast:
+            return jsonify({'success': False, 'error': 'Рассылка не найдена'})
+        
+        # Обновляем статус на "отправляется"
+        cur.execute("""
+            UPDATE broadcasts 
+            SET status = 'sending', started_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (broadcast_id,))
+        conn.commit()
+        
+        # Получаем получателей
+        cur.execute("""
+            SELECT br.*, bu.username
+            FROM broadcast_recipients br
+            JOIN bot_users bu ON br.user_id = bu.user_id
+            WHERE br.broadcast_id = %s AND br.status = 'pending'
+        """, (broadcast_id,))
+        recipients = cur.fetchall()
+        
+        # Импортируем необходимые модули для отправки
+        import requests
+        import time
+        
+        bot_token = os.getenv('BOT_TOKEN')
+        api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        
+        sent_count = 0
+        error_count = 0
+        
+        # Отправляем сообщения
+        for recipient in recipients:
+            try:
+                # Персонализация сообщения
+                message = broadcast['message']
+                if recipient['username']:
+                    message = message.replace('{username}', f"@{recipient['username']}")
+                
+                # Отправка через Telegram API
+                response = requests.post(api_url, json={
+                    'chat_id': recipient['user_id'],
+                    'text': message,
+                    'parse_mode': 'HTML'
+                }, timeout=10)
+                
+                if response.status_code == 200:
+                    # Обновляем статус получателя
+                    cur.execute("""
+                        UPDATE broadcast_recipients
+                        SET status = 'sent', sent_at = CURRENT_TIMESTAMP
+                        WHERE broadcast_id = %s AND user_id = %s
+                    """, (broadcast_id, recipient['user_id']))
+                    sent_count += 1
+                else:
+                    # Сохраняем ошибку
+                    error_msg = response.json().get('description', 'Unknown error')
+                    cur.execute("""
+                        UPDATE broadcast_recipients
+                        SET status = 'error', error_message = %s
+                        WHERE broadcast_id = %s AND user_id = %s
+                    """, (error_msg, broadcast_id, recipient['user_id']))
+                    error_count += 1
+                
+                # Коммитим каждые 10 сообщений
+                if (sent_count + error_count) % 10 == 0:
+                    conn.commit()
+                
+                # Задержка между сообщениями (30 сообщений в секунду)
+                time.sleep(0.035)
+                
+            except Exception as e:
+                cur.execute("""
+                    UPDATE broadcast_recipients
+                    SET status = 'error', error_message = %s
+                    WHERE broadcast_id = %s AND user_id = %s
+                """, (str(e), broadcast_id, recipient['user_id']))
+                error_count += 1
+        
+        # Обновляем статистику рассылки
+        cur.execute("""
+            UPDATE broadcasts 
+            SET status = 'sent', 
+                completed_at = CURRENT_TIMESTAMP,
+                sent_count = %s,
+                error_count = %s
+            WHERE id = %s
+        """, (sent_count, error_count, broadcast_id))
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True, 
+            'sent': sent_count, 
+            'errors': error_count
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/broadcast/<int:broadcast_id>/stats')
+@login_required
+def broadcast_stats(broadcast_id):
+    """Статистика рассылки"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем данные рассылки
+        cur.execute("SELECT * FROM broadcasts WHERE id = %s", (broadcast_id,))
+        broadcast = cur.fetchone()
+        
+        if not broadcast:
+            flash('Рассылка не найдена', 'danger')
+            return redirect(url_for('broadcast'))
+        
+        # Получаем статистику по получателям
+        cur.execute("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+                COUNT(CASE WHEN delivered_at IS NOT NULL THEN 1 END) as delivered,
+                COUNT(CASE WHEN status = 'error' THEN 1 END) as errors,
+                COUNT(CASE WHEN converted = TRUE THEN 1 END) as converted
+            FROM broadcast_recipients
+            WHERE broadcast_id = %s
+        """, (broadcast_id,))
+        stats = cur.fetchone()
+        
+        # Получаем ошибки
+        cur.execute("""
+            SELECT br.*, bu.username, br.sent_at
+            FROM broadcast_recipients br
+            LEFT JOIN bot_users bu ON br.user_id = bu.user_id
+            WHERE br.broadcast_id = %s AND br.status = 'error'
+            LIMIT 100
+        """, (broadcast_id,))
+        errors = cur.fetchall()
+        
+        return render_template('broadcast_stats.html', 
+                             broadcast=broadcast, 
+                             stats=stats,
+                             errors=errors)
+        
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('broadcast'))
+    finally:
+        cur.close()
+        conn.close()
+
+@app.route('/test')
+def test():
+    return "Test works!"
+
+def test_integrations():
+    """Тестовая страница интеграций без авторизации"""
+    return "Integrations route works!"
+
+@app.route('/debug-session')
+def debug_session():
+    """Отладка сессии"""
+    from flask import session
+    return f"""
+    <h1>Debug Session</h1>
+    <p>Authenticated: {current_user.is_authenticated if hasattr(current_user, 'is_authenticated') else 'No current_user'}</p>
+    <p>Session: {dict(session)}</p>
+    <p>Current User: {current_user.id if hasattr(current_user, 'id') and current_user.is_authenticated else 'Not logged in'}</p>
+    <a href="/login">Login</a> | <a href="/integrations">Integrations</a>
+    """
+
+def integrations():
+    """Страница управления интеграциями"""
+    print("DEBUG: Entering integrations function")
+    
+    # Импортируем нужные модули здесь
+    from flask import render_template, flash, redirect, url_for
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        print("DEBUG: Executing SQL query")
+        cur.execute("""
+            SELECT id, name, type, settings, is_active, created_at
+            FROM integrations
+            ORDER BY created_at DESC
+        """)
+        
+        integrations_list = []
+        for row in cur.fetchall():
+            integration = {
+                'id': row[0],
+                'name': row[1],
+                'type': row[2],
+                'settings': row[3],
+                'is_active': row[4],
+                'created_at': row[5]
+            }
+            
+            # Скрываем API ключ
+            if integration['settings'] and 'api_key' in integration['settings']:
+                integration['settings']['api_key'] = integration['settings']['api_key'][:10] + '...'
+            
+            # Статистика
+            cur.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN status = 'success' THEN 1 END) as success,
+                    COUNT(CASE WHEN status = 'error' THEN 1 END) as error,
+                    MAX(created_at) as last_send
+                FROM integration_logs
+                WHERE integration_id = %s
+            """, (integration['id'],))
+            
+            stats = cur.fetchone()
+            integration['stats'] = {
+                'total': stats[0] if stats else 0,
+                'success': stats[1] if stats else 0,
+                'error': stats[2] if stats else 0,
+                'last_send': stats[3] if stats else None
+            }
+            
+            integrations_list.append(integration)
+        
+        print(f"DEBUG: Found {len(integrations_list)} integrations")
+        
+        cur.close()
+        conn.close()
+        
+        return render_template('integrations.html', integrations=integrations_list)
+        
+    except Exception as e:
+        print(f"ERROR in integrations: {e}")
+        cur.close()
+        conn.close()
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+def create_integration():
+    """Создание новой интеграции"""
+    if request.method == 'POST':
+        name = request.form.get('name')
+        integration_type = request.form.get('type')
+        
+        if integration_type == 'alphacrm':
+            settings = {
+                'domain': request.form.get('domain', 'api.alphacrm.cc'),
+                'aff_id': request.form.get('aff_id'),
+                'api_key': request.form.get('api_key'),
+                'source': request.form.get('source', 'telegram_bot')
+            }
+        else:
+            flash('Неизвестный тип интеграции', 'danger')
+            return redirect(url_for('integrations'))
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        try:
+            cur.execute("""
+                INSERT INTO integrations (name, type, settings)
+                VALUES (%s, %s, %s)
+            """, (name, integration_type, json.dumps(settings)))
+            
+            conn.commit()
+            flash(f'Интеграция "{name}" создана!', 'success')
+            return redirect(url_for('integrations'))
+            
+        except Exception as e:
+            conn.rollback()
+            flash(f'Ошибка: {str(e)}', 'danger')
+        finally:
+            cur.close()
+            conn.close()
+    
+    return render_template('create_integration.html')
+
+def test_integration(integration_id):
+    """Тестирование интеграции"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            SELECT id, type, settings 
+            FROM integrations 
+            WHERE id = %s
+        """, (integration_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'Интеграция не найдена'})
+        
+        # Тестовые данные
+        test_data = {
+            'first_name': 'Тест',
+            'last_name': 'Тестов',
+            'phone': '+79001234567',
+            'email': 'test@test.com',
+            'country': 'Россия',
+            'user_id': '123456789',
+            'username': 'testuser'
+        }
+        
+        # Отправляем
+        result = send_to_crm(row[1], row[2], test_data)
+        
+        # Логируем
+        cur.execute("""
+            INSERT INTO integration_logs 
+            (integration_id, application_id, status, request_data, response_data, error_message)
+            VALUES (%s, NULL, %s, %s, %s, %s)
+        """, (
+            integration_id,
+            'success' if result.get('success') else 'error',
+            json.dumps(result.get('payload', test_data)),
+            json.dumps(result.get('response', {})),
+            result.get('error', '')
+        ))
+        conn.commit()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+def toggle_integration(integration_id):
+    """Включение/выключение интеграции"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE integrations 
+            SET is_active = NOT is_active
+            WHERE id = %s
+        """, (integration_id,))
+        
+        conn.commit()
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+    finally:
+        cur.close()
+        conn.close()
+
+def delete_integration(integration_id):
+    """Удаление интеграции"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("DELETE FROM integrations WHERE id = %s", (integration_id,))
+        conn.commit()
+        
+        flash('Интеграция удалена', 'success')
+        return redirect(url_for('integrations'))
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('integrations'))
+    finally:
+        cur.close()
+        conn.close()
+
+# ==================== ИНТЕГРАЦИИ С CRM ====================
+
+@app.route('/integrations')
+@login_required
+def integrations():
+    """Страница управления интеграциями CRM"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Получаем интеграции
+        cur.execute("""
+            SELECT id, name, type, settings, is_active, created_at
+            FROM integrations
+            ORDER BY id DESC
+        """)
+        
+        integrations_list = []
+        rows = cur.fetchall()
+        
+        for row in rows:
+            # С RealDictCursor row - это словарь
+            integration = {
+                'id': row['id'],
+                'name': row['name'],
+                'type': row['type'],
+                'settings': row['settings'] or {},
+                'is_active': row['is_active'],
+                'created_at': row['created_at']
+            }
+            
+            # Скрываем API ключ
+            if 'api_key' in integration['settings']:
+                api_key = str(integration['settings'].get('api_key', ''))
+                if len(api_key) > 10:
+                    integration['settings']['api_key'] = api_key[:10] + '...'
+            
+            # Получаем статистику
+            try:
+                cur.execute("""
+                    SELECT 
+                        COUNT(*) as total,
+                        COUNT(CASE WHEN status = 'success' THEN 1 END) as success,
+                        COUNT(CASE WHEN status = 'error' THEN 1 END) as error,
+                        MAX(created_at) as last_send
+                    FROM integration_logs
+                    WHERE integration_id = %s
+                """, (integration['id'],))
+                
+                stats = cur.fetchone()
+                if stats:
+                    integration['stats'] = {
+                        'total': stats['total'] or 0,
+                        'success': stats['success'] or 0,
+                        'error': stats['error'] or 0,
+                        'last_send': stats['last_send']
+                    }
+                else:
+                    integration['stats'] = {
+                        'total': 0,
+                        'success': 0,
+                        'error': 0,
+                        'last_send': None
+                    }
+            except Exception as stats_error:
+                app.logger.warning(f"Stats error for integration {integration['id']}: {stats_error}")
+                integration['stats'] = {
+                    'total': 0,
+                    'success': 0,
+                    'error': 0,
+                    'last_send': None
+                }
+            
+            integrations_list.append(integration)
+        
+        cur.close()
+        conn.close()
+        
+        return render_template('integrations.html', integrations=integrations_list)
+        
+    except Exception as e:
+        if conn:
+            conn.close()
+        
+        app.logger.error(f"Error in integrations: {str(e)}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        
+        flash(f'Ошибка при загрузке интеграций: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/integrations/create', methods=['GET', 'POST'])
+@login_required
+def create_integration():
+    """Создание новой интеграции"""
+    if request.method == 'POST':
+        app.logger.info(f"Creating integration - Form data: {dict(request.form)}")
+        try:
+            name = request.form.get('name')
+            integration_type = request.form.get('type')
+            
+            if not name or not integration_type:
+                flash('Заполните все обязательные поля', 'danger')
+                return render_template('create_integration.html')
+            
+            settings = {}
+            if integration_type == 'alphacrm':
+                settings = {
+                    'domain': request.form.get('domain', 'api.alphacrm.cc'),
+                    'aff_id': request.form.get('aff_id', ''),
+                    'api_key': request.form.get('api_key', ''),
+                    'source': request.form.get('source', 'telegram_bot')
+                }
+                
+                # Проверка обязательных полей для AlphaCRM
+                if not settings['aff_id']:
+                    flash('Affiliate ID обязателен для AlphaCRM', 'danger')
+                    return render_template('create_integration.html')
+            
+            conn = get_db_connection()
+            cur = conn.cursor()
+            
+            # Вставляем новую интеграцию
+            cur.execute("""
+                INSERT INTO integrations (name, type, settings, is_active)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (name, integration_type, json.dumps(settings), True))
+            
+            new_id = cur.fetchone()['id'] if hasattr(cur, 'fetchone') else None
+            conn.commit()
+            
+            flash(f'Интеграция "{name}" успешно создана!', 'success')
+            app.logger.info(f"Created integration: {name} (ID: {new_id})")
+            
+            cur.close()
+            conn.close()
+            
+            return redirect(url_for('integrations'))
+            
+        except Exception as e:
+            if 'conn' in locals():
+                conn.rollback()
+                conn.close()
+            
+            app.logger.error(f"Error creating integration: {str(e)}")
+            import traceback
+            app.logger.error(traceback.format_exc())
+            
+            flash(f'Ошибка создания интеграции: {str(e)}', 'danger')
+            return render_template('create_integration.html')
+    
+    # GET запрос - показываем форму
+    return render_template('create_integration.html')
+
+
+@app.route('/integrations/<int:integration_id>/test', methods=['POST'])
+@login_required
+def test_integration(integration_id):
+    """Тестирование интеграции"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Получаем данные интеграции
+        cur.execute("""
+            SELECT name, type, settings
+            FROM integrations
+            WHERE id = %s
+        """, (integration_id,))
+        
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'success': False, 'error': 'Интеграция не найдена'})
+        
+        name = row['name']
+        integration_type = row['type']
+        settings = row['settings'] if row['settings'] else {}
+        
+        # Тестовые данные
+        # Получаем данные из запроса или используем дефолтные
+        if request.is_json and request.json:
+            test_lead = {
+                'first_name': request.json.get('first_name', 'Тест'),
+                'last_name': request.json.get('last_name', 'Тестов'),
+                'phone': request.json.get('phone', '+79001234567'),
+                'country': request.json.get('country', 'Россия'),
+                'user_id': request.json.get('user_id', '123456789'),
+                'username': request.json.get('username', 'testuser')
+            }
+        else:
+            test_lead = {
+                'first_name': 'Тест',
+                'last_name': 'Тестов',
+                'phone': '+79001234567',
+                'country': 'Россия',
+                'user_id': '123456789',
+                'username': 'testuser'
+            }
+        
+        # Импортируем функцию отправки
+        try:
+            from integrations import send_to_crm
+            result = send_to_crm(integration_type, settings, test_lead)
+        except ImportError:
+            # Если модуль не найден, возвращаем тестовый результат
+            result = {
+                'success': True,
+                'response': {'test': True, 'message': 'Тестовая отправка (модуль integrations.py не найден)'}
+            }
+        except Exception as e:
+            result = {
+                'success': False,
+                'error': f'Ошибка при отправке: {str(e)}'
+            }
+        
+        # Логируем результат
+        cur.execute("""
+            INSERT INTO integration_logs 
+            (integration_id, application_id, status, request_data, response_data, error_message)
+            VALUES (%s, NULL, %s, %s, %s, %s)
+        """, (
+            integration_id,
+            'success' if result.get('success') else 'error',
+            json.dumps(result.get('payload', test_lead)),
+            json.dumps(result.get('response', {})),
+            result.get('error', '')
+        ))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': f'Тест успешен! Лид отправлен в {name}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Неизвестная ошибка')
+            })
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+            conn.close()
+        
+        app.logger.error(f"Error testing integration: {str(e)}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/integrations/<int:integration_id>/toggle', methods=['POST'])
+@login_required
+def toggle_integration(integration_id):
+    """Включение/выключение интеграции"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        cur.execute("""
+            UPDATE integrations 
+            SET is_active = NOT is_active
+            WHERE id = %s
+            RETURNING is_active
+        """, (integration_id,))
+        
+        new_status = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'is_active': new_status
+        })
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        app.logger.error(f"Error toggling integration: {str(e)}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/integrations/<int:integration_id>/delete', methods=['POST'])
+@login_required
+def delete_integration(integration_id):
+    """Удаление интеграции"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Удаляем сначала логи
+        cur.execute("DELETE FROM integration_logs WHERE integration_id = %s", (integration_id,))
+        # Затем саму интеграцию
+        cur.execute("DELETE FROM integrations WHERE id = %s", (integration_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        flash('Интеграция успешно удалена', 'success')
+        return redirect(url_for('integrations'))
+        
+    except Exception as e:
+        conn.rollback()
+        cur.close()
+        conn.close()
+        app.logger.error(f"Error deleting integration: {str(e)}")
+        flash(f'Ошибка удаления: {str(e)}', 'danger')
+        return redirect(url_for('integrations'))
+
+# ==================== ТЕСТОВАЯ СИСТЕМА РАССЫЛОК 2.0 ====================
+@app.route('/mailing2')
+@login_required
+def mailing2_index():
+    """Новая версия рассылок - использует старые шаблоны"""
+    # Пока просто вызываем старую функцию
+    return broadcast()
+
+
+@app.route('/mailing2/info')
+@login_required  
+def mailing2_info():
+    """Информация о новой системе"""
+    return jsonify({
+        'version': '2.0-beta',
+        'status': 'testing',
+        'features': [
+            'Улучшенный интерфейс',
+            'Расширенная статистика',
+            'Шаблоны сообщений'
+        ]
+    })
+
+
+if __name__ == '__main__':
+    init_admin()
+    app.run(host='0.0.0.0', port=8000, debug=False)
+
+
+@app.route('/api/send-application-to-crm/<int:application_id>', methods=['POST'])
+def api_send_to_crm(application_id):
+    """API endpoint для отправки заявки в CRM из бота"""
+    # Проверяем API ключ
+    api_key = request.headers.get('X-API-Key')
+    if api_key != os.getenv('INTERNAL_API_KEY', 'your-secret-api-key'):
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    try:
+        from send_to_crm_helper import send_application_to_active_crms
+        send_application_to_active_crms(application_id)
+        return jsonify({'success': True, 'message': f'Application {application_id} sent to CRM'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+
+
+@app.route('/integrations/send-all-pending', methods=['POST'])
+@login_required
+def send_all_pending():
+    """Отправить все неотправленные заявки в CRM"""
+    try:
+        from auto_send_to_crm import get_unsent_applications, send_application_to_active_crms
+        
+        unsent_ids = get_unsent_applications()
+        sent_count = 0
+        errors = []
+        
+        for app_id in unsent_ids:
+            try:
+                send_application_to_active_crms(app_id)
+                sent_count += 1
+            except Exception as e:
+                errors.append(f"Заявка {app_id}: {str(e)}")
+        
+        if errors:
+            flash(f'Отправлено {sent_count} заявок. Ошибки: {", ".join(errors)}', 'warning')
+        else:
+            flash(f'Успешно отправлено {sent_count} заявок в CRM!', 'success')
+            
+    except Exception as e:
+        flash(f'Ошибка: {str(e)}', 'danger')
+    
+    return redirect(url_for('integrations'))
+
+

@@ -3,6 +3,7 @@ from psycopg2.extras import RealDictCursor
 import json
 import os
 import sys
+from datetime import datetime
 sys.path.append('/home/Lastbot/admin_panel')
 from integrations import send_to_crm
 from integrations import transliterate
@@ -48,7 +49,7 @@ def send_application_to_active_crms(application_id):
             'preferred_time': app_data['preferred_time'],
             'user_id': str(app_data['user_id']),
             'username': app_data['username'] or '',
-            'email': f"user{str(app_data['user_id'])}@gmail.com"
+            'email': f"user{str(app_data['user_id'])}{app_data['phone'][-4:] if app_data.get('phone') else '0000'}{datetime.now().strftime('%H%M%S')}@gmail.com"
         }
         
         print(f"Sending lead data: {lead_data}")
