@@ -243,17 +243,25 @@ class MailingModel:
             cur.close()
             conn.close()
 
-    def delete_mailing(self, mailing_id):
+    def delete_mailing(self, mailing_id, force=False):
         """Удалить рассылку"""
         conn = self.get_db_connection()
         cur = conn.cursor()
         try:
-            # Удаляем только черновики или отправленные рассылки
-            cur.execute("""
-                DELETE FROM mailings 
-                WHERE id = %s AND status IN ('draft', 'sent')
-                RETURNING id
-            """, (mailing_id,))
+            if force:
+                # Принудительное удаление для админа
+                cur.execute("""
+                    DELETE FROM mailings 
+                    WHERE id = %s
+                    RETURNING id
+                """, (mailing_id,))
+            else:
+                # Обычное удаление - только черновики и отправленные
+                cur.execute("""
+                    DELETE FROM mailings 
+                    WHERE id = %s AND status IN ('draft', 'sent')
+                    RETURNING id
+                """, (mailing_id,))
             
             deleted = cur.fetchone()
             conn.commit()
