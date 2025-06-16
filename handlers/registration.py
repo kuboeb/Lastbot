@@ -264,6 +264,9 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         try:
             send_fb_conversion_async(application_id)
     
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            pass
     # Проверяем RichAds
     cur.execute("SELECT platform FROM traffic_sources WHERE id = %s", (source_id,))
     source_result = cur.fetchone()
