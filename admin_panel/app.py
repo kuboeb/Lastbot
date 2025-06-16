@@ -652,8 +652,12 @@ def export_users():
 @login_required
 def delete_user(user_id):
     """Удаление пользователя со всеми связанными данными"""
+    conn = None
     try:
-        conn = psycopg2.connect(DATABASE_URL)
+        print(f"Attempting to delete user {user_id}")
+        
+        # Используем get_db_connection() как в других функциях
+        conn = get_db_connection()
         cur = conn.cursor()
         
         # Вызываем функцию каскадного удаления
@@ -661,9 +665,11 @@ def delete_user(user_id):
         result = cur.fetchone()
         
         if result:
-            message = result[0]
+            message = result['delete_user_cascade'] if isinstance(result, dict) else result[0]
         else:
             message = f"Пользователь {user_id} удален"
+        
+        print(f"Delete result: {message}")
             
         conn.commit()
         cur.close()
@@ -682,7 +688,7 @@ def delete_user(user_id):
         print(traceback.format_exc())
         
         # Откатываем транзакцию при ошибке
-        if 'conn' in locals():
+        if conn:
             conn.rollback()
             conn.close()
             
@@ -690,45 +696,6 @@ def delete_user(user_id):
             'success': False,
             'status': 'error',
             'message': error_msg
-        }), 500
-def delete_user(user_id):
-    """Удаление пользователя со всеми связанными данными"""
-    try:
-        conn = psycopg2.connect(DATABASE_URL)
-        cur = conn.cursor()
-        
-        # Вызываем функцию каскадного удаления
-        cur.execute("SELECT delete_user_cascade(%s)", (user_id,))
-        result = cur.fetchone()
-        
-        if result:
-            message = result[0]
-        else:
-            message = f"Пользователь {user_id} удален"
-            
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'message': message
-        })
-        
-    except Exception as e:
-        import traceback
-        error_msg = f'Ошибка при удалении: {str(e)}'
-        print(f"ERROR in delete_user: {error_msg}")
-        print(traceback.format_exc())
-        
-        # Откатываем транзакцию при ошибке
-        if 'conn' in locals():
-            conn.rollback()
-            conn.close()
-            
-        return jsonify({
-            'success': False,
-            'error': error_msg
         }), 500
 @app.route('/editor')
 @login_required
