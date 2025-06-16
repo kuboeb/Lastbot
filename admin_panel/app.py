@@ -1994,7 +1994,7 @@ except Exception as e:
 
 
 # Регистрируем RichAds маршруты
-register_richads_routes(app, get_db_connection)
+
 
 if __name__ == '__main__':
     init_admin()
@@ -2046,5 +2046,9 @@ def send_all_pending():
         flash(f'Ошибка: {str(e)}', 'danger')
     
     return redirect(url_for('integrations'))
+
+# Регистрируем RichAds маршруты
+register_richads_routes(app, get_db_connection)
+
 
 
