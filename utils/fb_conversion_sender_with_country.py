@@ -1,6 +1,4 @@
 import logging
-import traceback
-
 import requests
 import hashlib
 import json
@@ -10,15 +8,6 @@ import threading
 import os
 
 logger = logging.getLogger(__name__)
-
-def normalize_and_hash(value: str) -> str:
-    """Нормализация и хеширование по правилам Facebook"""
-    if not value:
-        return None
-    # Приводим к нижнему регистру, убираем пробелы
-    normalized = value.lower().strip()
-    # Хешируем SHA256
-    return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
 
 def send_fb_conversion_async(application_id: int):
     """Отправка конверсии в Facebook в отдельном потоке"""
@@ -31,7 +20,6 @@ def send_fb_conversion_async(application_id: int):
     logger.info(f"Started Facebook conversion thread for application {application_id}")
 
 def _send_fb_conversion(application_id: int):
-    logger.info(f"DEBUG: _send_fb_conversion called from: {traceback.extract_stack()[-2]}")
     """Внутренняя функция отправки конверсии"""
     try:
         # Подключаемся к БД
@@ -49,6 +37,7 @@ def _send_fb_conversion(application_id: int):
                 a.id,
                 a.user_id,
                 a.phone,
+                a.country,
                 ts.settings,
                 ts.name,
                 uc.click_id
@@ -69,7 +58,7 @@ def _send_fb_conversion(application_id: int):
             logger.info(f"No active Facebook source for application {application_id}")
             return
         
-        app_id, user_id, phone, settings, source_name, fbclid = result
+        app_id, user_id, phone, country, settings, source_name, fbclid = result
         
         # Парсим настройки
         settings = json.loads(settings) if isinstance(settings, str) else settings
@@ -83,15 +72,19 @@ def _send_fb_conversion(application_id: int):
         # Генерируем event_id
         event_id = f"lead_{application_id}_{int(datetime.now().timestamp())}"
         
-        # Подготавливаем данные пользователя (только телефон!)
-        user_data = {
-            "ph": [normalize_and_hash(phone)]
-        }
+        # Хешируем данные
+        phone_hash = hashlib.sha256(phone.lower().strip().encode()).hexdigest()
         
-        # Добавляем fbclid если есть (НЕ хешируется!)
-        if fbclid:
-            user_data["fbc"] = f"fb.1.{int(datetime.now().timestamp())}.{fbclid}"
-            logger.info(f"Including fbclid for better matching: {fbclid[:20]}...")
+        # Определяем код страны
+        country_codes = {
+            'россия': 'ru', 'германия': 'de', 'испания': 'es',
+            'италия': 'it', 'франция': 'fr', 'польша': 'pl',
+            'чехия': 'cz', 'австрия': 'at', 'швейцария': 'ch',
+            'нидерланды': 'nl', 'бельгия': 'be', 'португалия': 'pt',
+            'греция': 'gr', 'великобритания': 'gb', 'швеция': 'se'
+        }
+        country_code = country_codes.get(country.lower(), 'xx')
+        country_hash = hashlib.sha256(country_code.encode()).hexdigest()
         
         # Формируем данные для отправки
         event_data = {
@@ -100,15 +93,18 @@ def _send_fb_conversion(application_id: int):
                 "event_time": int(datetime.now().timestamp()),
                 "event_id": event_id,
                 "action_source": "app",
-                "user_data": user_data,
-                "advertiser_tracking_enabled": 1,  # Обязательно для app
-                "data_processing_options": []
+                "user_data": {
+                    "ph": [phone_hash],
+                    "country": [country_hash]
+                }
             }],
             "access_token": access_token
         }
         
-        # Логируем что отправляем
-        logger.info(f"Sending to Facebook - phone_hash: {user_data['ph'][0][:10]}..., fbclid: {'yes' if fbclid else 'no'}")
+        # Добавляем fbclid если есть
+        if fbclid:
+            event_data["data"][0]["user_data"]["fbc"] = f"fb.1.{int(datetime.now().timestamp())}.{fbclid}"
+            logger.info(f"Including fbclid for better matching: {fbclid[:20]}...")
         
         # Отправляем в Facebook
         url = f"https://graph.facebook.com/v18.0/{pixel_id}/events"
@@ -125,38 +121,26 @@ def _send_fb_conversion(application_id: int):
         
         if response.status_code == 200:
             logger.info(f"✅ Facebook conversion sent successfully for application {application_id}")
-            response_json = response.json()
-            logger.info(f"Facebook response: events_received={response_json.get('events_received', 0)}")
-            
             cur.execute("""
                 INSERT INTO facebook_conversions 
                 (application_id, event_id, pixel_id, status, request_data, response_data)
                 VALUES (%s, %s, %s, 'success', %s, %s)
-                ON CONFLICT (event_id) DO UPDATE SET
-                    status = 'success',
-                    response_data = EXCLUDED.response_data
             """, (
                 application_id, event_id, pixel_id,
                 json.dumps(event_data),
-                json.dumps(response_json)
+                json.dumps(response.json())
             ))
         else:
-            error_detail = response.json() if response.text else {"error": response.text}
-            logger.error(f"❌ Facebook conversion failed: {json.dumps(error_detail, indent=2)}")
-            
+            logger.error(f"❌ Facebook conversion failed: {response.text}")
             cur.execute("""
                 INSERT INTO facebook_conversions 
                 (application_id, event_id, pixel_id, status, request_data, response_data, error_message)
                 VALUES (%s, %s, %s, 'failed', %s, %s, %s)
-                ON CONFLICT (event_id) DO UPDATE SET
-                    status = 'failed',
-                    response_data = EXCLUDED.response_data,
-                    error_message = EXCLUDED.error_message
             """, (
                 application_id, event_id, pixel_id,
                 json.dumps(event_data),
-                json.dumps(error_detail),
-                f"HTTP {response.status_code}: {error_detail.get('error', {}).get('message', 'Unknown error')}"
+                json.dumps(response.json()) if response.text else None,
+                f"HTTP {response.status_code}: {response.text}"
             ))
         
         conn.commit()

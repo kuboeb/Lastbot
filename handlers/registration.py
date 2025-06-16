@@ -24,7 +24,7 @@ from utils.db_texts import get_text
 from utils.datetime_utils import get_current_datetime
 
 # Добавляем для Facebook конверсий
-from utils.facebook_conversion_helper import send_facebook_conversion_sync
+#from utils.facebook_conversion_helper import #send_facebook_conversion_sync
 import threading
 import logging
 from utils.fb_conversion_sender import send_fb_conversion_async
@@ -270,7 +270,8 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         try:
             def send_fb_conversion():
                 try:
-                    send_facebook_conversion_sync(application_id, user_id)
+            pass  # Временно отключено
+                    #send_facebook_conversion_sync(application_id, user_id)
                 except Exception as e:
                     logger.error(f"Error sending FB conversion: {e}")
             

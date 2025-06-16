@@ -19,7 +19,7 @@ from keyboards.keyboards import (
     get_back_button
 )
 from utils import messages
-from utils.db_texts import get_text
+from utils.db_texts_fixed import get_text
 from utils.datetime_utils import normalize_datetime, get_current_datetime
 from handlers.facebook_utils import save_user_fbclid
 
