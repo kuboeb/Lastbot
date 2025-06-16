@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика Facebook конверсий{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="bi bi-graph-up"></i> Статистика Facebook конверсий
+        </h1>
+        <a href="{{ url_for('facebook.conversions_list') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> К списку конверсий
+        </a>
+    </div>
+    
+    <!-- Общая статистика -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Всего за 7 дней</h5>
+                    <h2 class="text-primary">{{ stats.total_stats.total or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Успешно</h5>
+                    <h2 class="text-success">{{ stats.total_stats.success or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">Ошибки</h5>
+                    <h2 class="text-danger">{{ stats.total_stats.failed or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title">В ожидании</h5>
+                    <h2 class="text-warning">{{ stats.total_stats.pending or 0 }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Статистика по источникам -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Статистика по источникам</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Источник</th>
+                            <th>Всего конверсий</th>
+                            <th>Успешно</th>
+                            <th>% успеха</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for source in stats.sources_stats %}
+                        <tr>
+                            <td>{{ source.source_name }}</td>
+                            <td>{{ source.total_conversions }}</td>
+                            <td>{{ source.success_count }}</td>
+                            <td>
+                                {% if source.success_rate %}
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar {% if source.success_rate > 90 %}bg-success{% elif source.success_rate > 70 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {{ source.success_rate }}%">
+                                            {{ source.success_rate }}%
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                                Нет данных по источникам
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- График по дням -->
+    {% if daily_stats %}
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">Динамика за 30 дней</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="dailyChart" height="100"></canvas>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if daily_stats %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('dailyChart').getContext('2d');
+const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [{% for stat in daily_stats %}'{{ stat.date }}'{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{
+            label: 'Всего',
+            data: [{% for stat in daily_stats %}{{ stat.total }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1
+        }, {
+            label: 'Успешно',
+            data: [{% for stat in daily_stats %}{{ stat.success }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(54, 162, 235)',
+            tension: 0.1
+        }, {
+            label: 'Ошибки',
+            data: [{% for stat in daily_stats %}{{ stat.failed }}{% if not loop.last %},{% endif %}{% endfor %}],
+            borderColor: 'rgb(255, 99, 132)',
+            tension: 0.1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false
+    }
+});
+</script>
+{% endif %}
+{% endblock %}
