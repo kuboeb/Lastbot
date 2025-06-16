@@ -267,15 +267,25 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         except Exception as e:
             logger.error(f"Error: {e}")
             pass
-    # Проверяем RichAds
-    cur.execute("SELECT platform FROM traffic_sources WHERE id = %s", (source_id,))
-    source_result = cur.fetchone()
-    if source_result and source_result['platform'] == 'richads':
-        from utils.richads.sender import send_richads_conversion_async
-        send_richads_conversion_async(application_id)
-        logger.info(f"Initiated RichAds conversion for application {application_id}")
+
+        # Проверяем RichAds
+        try:
+            if source_id:
+                # Используем синхронное подключение для проверки платформы
+                import psycopg2
+                sync_conn = psycopg2.connect(DATABASE_URL)
+                sync_cur = sync_conn.cursor()
+                sync_cur.execute("SELECT platform FROM traffic_sources WHERE id = %s", (source_id,))
+                source_result = sync_cur.fetchone()
+                sync_cur.close()
+                sync_conn.close()
+                
+                if source_result and source_result[0] == "richads":
+                    from utils.richads.sender import send_richads_conversion_async
+                    send_richads_conversion_async(application_id)
+                    logger.info(f"Initiated RichAds conversion for application {application_id}")
         except Exception as e:
-            logger.error(f"Failed to start FB conversion: {e}")
+            logger.error(f"Failed to check/send RichAds conversion: {e}")
         
         # Отправка конверсии в Facebook в фоновом потоке
         try:
