@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика рассылки{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <a href="{{ url_for('mailing.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+        <h1 class="h3 mt-2">{{ mailing.name }}</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Статистика</h5>
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h3>{{ mailing.total_recipients or 0 }}</h3>
+                            <p class="text-muted">Получателей</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-success">{{ mailing.sent or 0 }}</h3>
+                            <p class="text-muted">Отправлено</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3 class="text-danger">{{ mailing.failed or 0 }}</h3>
+                            <p class="text-muted">Ошибок</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h3>{{ mailing.status }}</h3>
+                            <p class="text-muted">Статус</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Сообщение</h5>
+                    <p class="text-break">{{ mailing.message }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

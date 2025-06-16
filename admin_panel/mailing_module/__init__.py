@@ -1,12 +1,12 @@
 from flask import Blueprint
 
 # Создаем Blueprint для модуля рассылок
-broadcast_bp = Blueprint(
-    'broadcast',
+mailing_bp = Blueprint(
+    'mailing',
     __name__,
     template_folder='templates',
-    static_folder='static',
-    url_prefix='/broadcast'
+    url_prefix='/mailing'
 )
 
+# Импортируем routes после создания Blueprint
 from . import routes

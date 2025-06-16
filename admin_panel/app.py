@@ -2005,6 +2005,15 @@ def delete_integration(integration_id):
         flash(f'Ошибка удаления: {str(e)}', 'danger')
         return redirect(url_for('integrations'))
 
+
+# Подключение модуля рассылок
+try:
+    from mailing_module import mailing_bp
+    app.register_blueprint(mailing_bp)
+    print("✅ Модуль mailing подключен")
+except Exception as e:
+    print(f"⚠️ Модуль mailing не подключен: {e}")
+
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)

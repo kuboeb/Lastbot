@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Создать рассылку{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <a href="{{ url_for('mailing.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+        <h1 class="h3 mt-2">Создать рассылку</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-body">
+                    <form id="mailingForm">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Название</label>
+                            <input type="text" class="form-control" id="name" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Сообщение</label>
+                            <textarea class="form-control" id="message" rows="5" required></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Аудитория</label>
+                            <select class="form-select" id="audience">
+                                <option value="all">Все активные пользователи</option>
+                                <option value="no_application">Без заявки</option>
+                                <option value="with_application">С заявкой</option>
+                            </select>
+                            <small class="text-muted">Получателей: <span id="audienceCount">загрузка...</span></small>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">Создать</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('audience').addEventListener('change', updatePreview);
+
+async function updatePreview() {
+    const audience = document.getElementById('audience').value;
+    try {
+        const response = await fetch('/mailing/preview', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({audience})
+        });
+        const result = await response.json();
+        if (result.success) {
+            document.getElementById('audienceCount').textContent = result.count;
+        }
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+document.getElementById('mailingForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const data = {
+        name: document.getElementById('name').value,
+        message: document.getElementById('message').value,
+        audience: document.getElementById('audience').value
+    };
+    
+    try {
+        const response = await fetch('/mailing/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('Рассылка создана!');
+            window.location.href = '/mailing';
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка: ' + error);
+    }
+});
+
+updatePreview();
+</script>
+{% endblock %}
