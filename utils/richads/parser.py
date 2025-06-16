@@ -25,11 +25,16 @@ def parse_richads_params(start_param: str) -> Optional[Dict[str, str]]:
         parts = start_param.split('__')
         
         # Проверяем, что это RichAds источник
-        if not parts[0].startswith('src_rich'):
+        if not (parts[0].startswith('src_rich') or parts[0] == 'src'):
             return None
             
+        # Извлекаем код источника
+        source_code = parts[0]
+        if source_code.startswith('src_'):
+            source_code = source_code[4:]  # Убираем src_ префикс
+            
         result = {
-            'source_code': parts[0],
+            'source_code': source_code,
             'platform': 'richads'
         }
         
