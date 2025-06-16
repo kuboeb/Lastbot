@@ -20,6 +20,8 @@ from handlers import start, registration, info
 from middlewares.tracking import TrackingMiddleware
 from middlewares.antiflood import AntifloodMiddleware
 from middlewares.logging import LoggingMiddleware
+from admin_panel.mailing_module.scenario_service import ScenarioService
+from admin_panel.mailing_module.scheduler import MailingScheduler
 
 # Настройка логирования
 logging.basicConfig(
@@ -111,6 +113,14 @@ async def main():
         await on_shutdown()
 
 if __name__ == "__main__":
+
+# Запускаем планировщик для автоматических сценариев
+print("🚀 Запуск планировщика сценариев...")
+scenario_service = ScenarioService(get_db_connection, None)
+scheduler = MailingScheduler(scenario_service)
+scheduler.start()
+print("✅ Планировщик запущен - сценарии будут отправляться в 12:00 GMT+3")
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
