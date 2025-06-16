@@ -30,7 +30,6 @@ def send_fb_conversion_async(application_id: int):
     logger.info(f"Started Facebook conversion thread for application {application_id}")
 
 def _send_fb_conversion(application_id: int):
-    logger.info(f"DEBUG: _send_fb_conversion called from: {traceback.extract_stack()[-2]}")
     """Внутренняя функция отправки конверсии"""
     try:
         # Подключаемся к БД
