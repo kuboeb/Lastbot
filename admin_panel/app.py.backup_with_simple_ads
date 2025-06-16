@@ -3,7 +3,6 @@
 """
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
 from facebook_module import facebook_bp
-from admin_panel.routes.simple_ads import register_simple_ads_routes
 
 def format_datetime(dt):
     '''Форматировать datetime для отображения'''
@@ -1997,11 +1996,8 @@ except Exception as e:
 # Регистрируем маршруты простых рекламных ссылок
 
 
-
 # Регистрируем маршруты простых рекламных ссылок
 register_simple_ads_routes(app, get_db_connection)
-
-# Регистрируем маршруты простых рекламных ссылок
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
@@ -2031,6 +2027,8 @@ def send_all_pending():
     """Отправить все неотправленные заявки в CRM"""
     try:
         from auto_send_to_crm import get_unsent_applications, send_application_to_active_crms
+from admin_panel.routes.simple_ads import register_simple_ads_routes
+from admin_panel.routes.simple_ads import register_simple_ads_routes
         
         unsent_ids = get_unsent_applications()
         sent_count = 0
