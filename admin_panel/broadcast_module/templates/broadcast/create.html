@@ -1,0 +1,414 @@
+{% extends "broadcast/base.html" %}
+
+{% block title %}Создать рассылку{% endblock %}
+
+{% block broadcast_content %}
+<div class="container-fluid">
+    <div class="mb-4">
+        <a href="{{ url_for('broadcast.broadcast_list') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Назад к рассылкам
+        </a>
+        <h1 class="h3 mt-2">Создать рассылку</h1>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <!-- Тип рассылки -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Тип рассылки</label>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-check card p-3">
+                                    <input class="form-check-input" type="radio" name="broadcastType" 
+                                           id="typeSingle" value="single" checked onchange="toggleBroadcastType()">
+                                    <label class="form-check-label" for="typeSingle">
+                                        <i class="bi bi-envelope fs-5"></i>
+                                        <strong>Разовая рассылка</strong>
+                                        <p class="text-muted small mb-0">Одно сообщение всем получателям</p>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check card p-3">
+                                    <input class="form-check-input" type="radio" name="broadcastType" 
+                                           id="typeScenario" value="scenario" onchange="toggleBroadcastType()">
+                                    <label class="form-check-label" for="typeScenario">
+                                        <i class="bi bi-diagram-3 fs-5"></i>
+                                        <strong>Автоматический сценарий</strong>
+                                        <p class="text-muted small mb-0">Серия сообщений по расписанию</p>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Выбор сценария -->
+                    <div id="scenarioSelect" class="mb-4" style="display: none;">
+                        <label class="form-label fw-bold">Выберите сценарий</label>
+                        <select class="form-select" id="scenario">
+                            <option value="warming">🔥 Воронка прогрева (для тех, кто без заявки)</option>
+                            <option value="retention">📚 Удержание (для тех, кто с заявкой)</option>
+                        </select>
+                        <div class="mt-2 p-3 bg-light rounded" id="scenarioDescription">
+                            <strong>Воронка прогрева:</strong> 4 сообщения за 7 дней для мотивации к записи на курс
+                        </div>
+                    </div>
+
+                    <!-- Название -->
+                    <div class="mb-3">
+                        <label for="name" class="form-label fw-bold">Название рассылки</label>
+                        <input type="text" class="form-control" id="name" placeholder="Например: Новогоднее предложение" required>
+                    </div>
+
+                    <!-- Аудитория -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Аудитория</label>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="audience" 
+                                           id="audienceAll" value="all" checked onchange="updateAudiencePreview()">
+                                    <label class="form-check-label" for="audienceAll">
+                                        Все активные пользователи
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="audience" 
+                                           id="audienceNoApp" value="no_application" onchange="updateAudiencePreview()">
+                                    <label class="form-check-label" for="audienceNoApp">
+                                        Без заявки
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="audience" 
+                                           id="audienceWithApp" value="with_application" onchange="updateAudiencePreview()">
+                                    <label class="form-check-label" for="audienceWithApp">
+                                        С заявкой
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-muted">Получателей: </span>
+                            <span id="audienceCount" class="fw-bold">загрузка...</span>
+                        </div>
+                    </div>
+
+                    <!-- Сообщение (для разовой рассылки) -->
+                    <div id="messageBlock" class="mb-4">
+                        <label for="message" class="form-label fw-bold">
+                            Сообщение
+                            <button class="btn btn-sm btn-outline-secondary ms-2 emoji-button" onclick="showEmojiPicker(event)">
+                                😊 Эмодзи
+                            </button>
+                        </label>
+                        <textarea class="form-control" id="message" rows="8" 
+                                  placeholder="Введите текст сообщения..." 
+                                  onkeyup="updateCharCount()" required></textarea>
+                        <div class="d-flex justify-content-between mt-1">
+                            <small class="text-muted">
+                                Доступные переменные: {name}
+                            </small>
+                            <small id="charCount" class="text-muted">0 / 4096</small>
+                        </div>
+                    </div>
+
+                    <!-- Планирование -->
+                    <div id="scheduleBlock" class="mb-4">
+                        <label class="form-label fw-bold">Когда отправить?</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="schedule" 
+                                   id="scheduleNow" value="now" checked>
+                            <label class="form-check-label" for="scheduleNow">
+                                Сейчас (с умными интервалами 30-90 сек между сообщениями)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="schedule" 
+                                   id="scheduleLater" value="later">
+                            <label class="form-check-label" for="scheduleLater">
+                                Запланировать
+                            </label>
+                        </div>
+                        <div id="scheduleDateTime" class="mt-2" style="display: none;">
+                            <input type="datetime-local" class="form-control" id="scheduleTime">
+                        </div>
+                    </div>
+
+                    <!-- Кнопки -->
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-primary" onclick="createBroadcast()">
+                            <i class="bi bi-check-circle"></i> Создать рассылку
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="testBroadcast()">
+                            <i class="bi bi-send"></i> Тест себе
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Превью -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-phone"></i> Превью сообщения
+                </div>
+                <div class="card-body">
+                    <div class="border rounded p-3 bg-light" style="min-height: 200px;">
+                        <div id="messagePreview" class="text-break">
+                            Здесь будет отображаться ваше сообщение...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Шаблоны -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <i class="bi bi-file-text"></i> Шаблоны
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-sm btn-outline-primary text-start" 
+                                onclick="useTemplate('reminder')">
+                            📢 Напоминание о курсе
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary text-start" 
+                                onclick="useTemplate('limited')">
+                            ⏰ Ограниченное предложение
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary text-start" 
+                                onclick="useTemplate('success')">
+                            ⭐ История успеха
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Emoji Picker -->
+<div id="emojiPicker" class="emoji-picker">
+    <span onclick="insertEmoji('😀')">😀</span>
+    <span onclick="insertEmoji('😊')">😊</span>
+    <span onclick="insertEmoji('🎉')">🎉</span>
+    <span onclick="insertEmoji('🚀')">🚀</span>
+    <span onclick="insertEmoji('💰')">💰</span>
+    <span onclick="insertEmoji('📚')">📚</span>
+    <span onclick="insertEmoji('✅')">✅</span>
+    <span onclick="insertEmoji('🔥')">🔥</span>
+    <span onclick="insertEmoji('💎')">💎</span>
+    <span onclick="insertEmoji('⭐')">⭐</span>
+    <span onclick="insertEmoji('📈')">📈</span>
+    <span onclick="insertEmoji('🎯')">🎯</span>
+    <span onclick="insertEmoji('💡')">💡</span>
+    <span onclick="insertEmoji('🎁')">🎁</span>
+    <span onclick="insertEmoji('⏰')">⏰</span>
+</div>
+
+<script>
+// Переключение типа рассылки
+function toggleBroadcastType() {
+    const type = document.querySelector('input[name="broadcastType"]:checked').value;
+    document.getElementById('scenarioSelect').style.display = type === 'scenario' ? 'block' : 'none';
+    document.getElementById('messageBlock').style.display = type === 'single' ? 'block' : 'none';
+    document.getElementById('scheduleBlock').style.display = type === 'single' ? 'block' : 'none';
+}
+
+// Обновление описания сценария
+document.getElementById('scenario').addEventListener('change', function() {
+    const descriptions = {
+        'warming': '<strong>Воронка прогрева:</strong> 4 сообщения за 7 дней для мотивации к записи на курс',
+        'retention': '<strong>Удержание:</strong> Регулярные сообщения каждые 3 дня с полезным контентом'
+    };
+    document.getElementById('scenarioDescription').innerHTML = descriptions[this.value];
+});
+
+// Обновление превью сообщения
+document.getElementById('message').addEventListener('input', function() {
+    let preview = this.value || 'Здесь будет отображаться ваше сообщение...';
+    preview = preview.replace('{name}', 'Иван');
+    document.getElementById('messagePreview').innerHTML = preview.replace(/\n/g, '<br>');
+});
+
+// Переключение планирования
+document.querySelectorAll('input[name="schedule"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.getElementById('scheduleDateTime').style.display = 
+            this.value === 'later' ? 'block' : 'none';
+    });
+});
+
+// Обновление превью аудитории
+async function updateAudiencePreview() {
+    const audience = document.querySelector('input[name="audience"]:checked').value;
+    const countElement = document.getElementById('audienceCount');
+    
+    try {
+        const response = await fetch('/broadcast/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audience })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            countElement.textContent = result.count + ' человек';
+        }
+    } catch (error) {
+        countElement.textContent = 'ошибка загрузки';
+    }
+}
+
+// Использование шаблона
+function useTemplate(templateName) {
+    const templates = {
+        'reminder': `🚀 {name}, напоминаем о бесплатном курсе по криптовалюте!
+
+📚 Что вас ждет:
+- 8 недель интенсивного обучения
+- Личный наставник
+- Практические задания
+- Сертификат по окончании
+
+💰 Наши выпускники зарабатывают от 500€ в месяц!
+
+Не упустите шанс изменить свою жизнь. Записывайтесь прямо сейчас! 👇`,
+
+        'limited': `⏰ {name}, специальное предложение!
+
+🎁 Только сегодня при записи на курс:
+- Бонусный модуль по DeFi
+- Закрытый чат с экспертами
+- Чек-лист "Первые 1000€"
+
+⚡ Осталось всего 5 мест!
+
+Успейте записаться 👇`,
+
+        'success': `⭐ {name}, история успеха нашего выпускника!
+
+"Начал с 500€, через 3 месяца портфель вырос до 3000€. Курс изменил мою жизнь!" - Александр, Германия
+
+🎯 Хотите такие же результаты?
+
+Записывайтесь на бесплатный курс и начните зарабатывать на крипте! 🚀`
+    };
+    
+    document.getElementById('message').value = templates[templateName];
+    document.getElementById('message').dispatchEvent(new Event('input'));
+    updateCharCount();
+}
+
+// Создание рассылки
+async function createBroadcast() {
+    const type = document.querySelector('input[name="broadcastType"]:checked').value;
+    const name = document.getElementById('name').value;
+    const audience = document.querySelector('input[name="audience"]:checked').value;
+    
+    if (!name) {
+        alert('Введите название рассылки');
+        return;
+    }
+    
+    let data = {
+        type,
+        name,
+        audience
+    };
+    
+    if (type === 'single') {
+        const message = document.getElementById('message').value;
+        if (!message) {
+            alert('Введите текст сообщения');
+            return;
+        }
+        data.message = message;
+        
+        const schedule = document.querySelector('input[name="schedule"]:checked').value;
+        if (schedule === 'later') {
+            data.scheduled_at = document.getElementById('scheduleTime').value;
+        }
+    } else {
+        data.scenario = document.getElementById('scenario').value;
+    }
+    
+    try {
+        const response = await fetch('/broadcast/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('Рассылка создана!');
+            window.location.href = '/broadcast';
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка создания: ' + error);
+    }
+}
+
+// Тестовая отправка
+async function testBroadcast() {
+    const message = document.getElementById('message').value;
+    if (!message) {
+        alert('Введите текст сообщения для теста');
+        return;
+    }
+    
+    // Создаем временную рассылку и отправляем в тестовом режиме
+    const data = {
+        type: 'single',
+        name: 'Тест: ' + new Date().toLocaleString(),
+        audience: 'all',
+        message: message
+    };
+    
+    try {
+        // Создаем рассылку
+        const createResponse = await fetch('/broadcast/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        const createResult = await createResponse.json();
+        if (!createResult.success) {
+            alert('Ошибка создания теста: ' + createResult.error);
+            return;
+        }
+        
+        // Отправляем в тестовом режиме
+        const sendResponse = await fetch(`/broadcast/${createResult.broadcast_id}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ test_mode: true })
+        });
+        
+        const sendResult = await sendResponse.json();
+        if (sendResult.success) {
+            alert('Тестовое сообщение отправлено вам в бот!');
+        } else {
+            alert('Ошибка отправки: ' + sendResult.error);
+        }
+    } catch (error) {
+        alert('Ошибка: ' + error);
+    }
+}
+
+// Инициализация
+updateAudiencePreview();
+</script>
+{% endblock %}

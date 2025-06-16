@@ -1,0 +1,126 @@
+{% extends "broadcast/base.html" %}
+
+{% block title %}Рассылки{% endblock %}
+
+{% block broadcast_content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Рассылки</h1>
+        <a href="{{ url_for('broadcast.broadcast_create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Создать рассылку
+        </a>
+    </div>
+
+    {% if broadcasts %}
+    <div class="row g-4">
+        {% for broadcast in broadcasts %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card broadcast-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title">{{ broadcast.name }}</h5>
+                        <span class="status-badge status-{{ broadcast.status }}">
+                            {% if broadcast.status == 'draft' %}Черновик
+                            {% elif broadcast.status == 'scheduled' %}Запланировано
+                            {% elif broadcast.status == 'sending' %}Отправляется
+                            {% elif broadcast.status == 'sent' %}Отправлено
+                            {% else %}{{ broadcast.status }}{% endif %}
+                        </span>
+                    </div>
+                    
+                    <p class="card-text text-muted small">
+                        {{ broadcast.message[:100] }}{% if broadcast.message|length > 100 %}...{% endif %}
+                    </p>
+                    
+                    <div class="mb-3">
+                        <span class="audience-badge">
+                            <i class="bi bi-people"></i> {{ broadcast.recipient_count or 0 }} получателей
+                        </span>
+                    </div>
+                    
+                    {% if broadcast.status == 'sending' %}
+                    <div class="progress mb-3" style="height: 10px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: {{ (broadcast.sent_count / broadcast.recipient_count * 100) if broadcast.recipient_count else 0 }}%">
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if broadcast.status == 'sent' %}
+                    <div class="small text-muted mb-3">
+                        <i class="bi bi-check-circle text-success"></i> Отправлено: {{ broadcast.sent_count or 0 }}
+                        <i class="bi bi-eye text-primary ms-2"></i> Доставлено: {{ broadcast.delivered_count or 0 }}
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('broadcast.broadcast_stats', broadcast_id=broadcast.id) }}" 
+                           class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-graph-up"></i> Статистика
+                        </a>
+                        
+                        {% if broadcast.status == 'draft' %}
+                        <button class="btn btn-sm btn-success" onclick="sendBroadcast({{ broadcast.id }})">
+                            <i class="bi bi-send"></i> Отправить
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteBroadcast({{ broadcast.id }})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer text-muted small">
+                    <i class="bi bi-clock"></i> {{ broadcast.created_at.strftime('%d.%m.%Y %H:%M') if broadcast.created_at else 'Н/Д' }}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Рассылок пока нет. 
+        <a href="{{ url_for('broadcast.broadcast_create') }}" class="alert-link">Создать первую рассылку</a>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function sendBroadcast(broadcastId) {
+    if (!confirm('Отправить рассылку всем получателям?')) return;
+    
+    try {
+        const response = await fetch(`/broadcast/${broadcastId}/send`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ test_mode: false })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`Рассылка запущена! Отправлено: ${result.sent}, Ошибок: ${result.failed}`);
+            location.reload();
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка отправки: ' + error);
+    }
+}
+
+async function deleteBroadcast(broadcastId) {
+    if (!confirm('Удалить рассылку?')) return;
+    
+    try {
+        await fetch(`/broadcast/${broadcastId}/delete`, {
+            method: 'POST'
+        });
+        location.reload();
+    } catch (error) {
+        alert('Ошибка удаления: ' + error);
+    }
+}
+</script>
+{% endblock %}
