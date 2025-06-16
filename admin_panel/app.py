@@ -2,6 +2,7 @@
 Админ-панель для управления ботом
 """
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
+from facebook_module import facebook_bp
 
 def format_datetime(dt):
     '''Форматировать datetime для отображения'''
@@ -75,6 +76,10 @@ def load_user(user_id):
     if admin_data:
         return Admin(admin_data['id'], admin_data['username'])
     return None
+
+
+# Регистрация Facebook модуля
+app.register_blueprint(facebook_bp, url_prefix="/facebook")
 
 @app.route('/')
 @app.route('/admin')
@@ -2013,6 +2018,12 @@ try:
     print("✅ Модуль mailing подключен")
 except Exception as e:
     print(f"⚠️ Модуль mailing не подключен: {e}")
+
+
+# Регистрация Facebook модуля
+
+
+# Регистрация Facebook модуля
 
 if __name__ == '__main__':
     init_admin()

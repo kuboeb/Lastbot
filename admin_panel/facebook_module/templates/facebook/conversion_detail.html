@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Детали конверсии #{{ conversion.application_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">
+            <i class="bi bi-facebook text-primary"></i> 
+            Конверсия #{{ conversion.application_id }}
+        </h1>
+        <a href="{{ url_for('facebook.conversions_list') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Назад к списку
+        </a>
+    </div>
+    
+    <div class="row">
+        <!-- Основная информация -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">📊 Информация о конверсии</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Статус:</strong></td>
+                            <td>
+                                {% if conversion.status == 'success' %}
+                                    <span class="badge bg-success">✓ Успешно отправлено</span>
+                                {% elif conversion.status == 'failed' %}
+                                    <span class="badge bg-danger">✗ Ошибка отправки</span>
+                                {% else %}
+                                    <span class="badge bg-warning">⏳ В ожидании</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Event ID:</strong></td>
+                            <td><code>{{ conversion.event_id }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Pixel ID:</strong></td>
+                            <td>{{ conversion.pixel_id }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Время отправки:</strong></td>
+                            <td>{{ conversion.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                        </tr>
+                        {% if conversion.error_message %}
+                        <tr>
+                            <td><strong>Ошибка:</strong></td>
+                            <td class="text-danger">{{ conversion.error_message }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Данные клиента -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">👤 Данные клиента</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Имя:</strong></td>
+                            <td>{{ conversion.full_name }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Телефон:</strong></td>
+                            <td>{{ conversion.phone }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Страна:</strong></td>
+                            <td>{{ conversion.country }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Username:</strong></td>
+                            <td>@{{ conversion.username or 'нет' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>User ID:</strong></td>
+                            <td>{{ conversion.user_id }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Время заявки:</strong></td>
+                            <td>{{ conversion.application_date.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Трекинг и технические данные -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">🔗 Данные трекинга</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Источник:</strong></td>
+                            <td>{{ conversion.source_name or 'Прямой трафик' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Click ID (fbclid):</strong></td>
+                            <td>
+                                {% if conversion.click_id %}
+                                    <code>{{ conversion.click_id }}</code>
+                                {% else %}
+                                    <span class="text-muted">Не найден</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if conversion.click_date %}
+                        <tr>
+                            <td><strong>Время клика:</strong></td>
+                            <td>{{ conversion.click_date.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Время до заявки:</strong></td>
+                            <td>
+                                {% set diff = (conversion.application_date - conversion.click_date).total_seconds() %}
+                                {% if diff < 60 %}
+                                    {{ diff|int }} сек
+                                {% elif diff < 3600 %}
+                                    {{ (diff/60)|int }} мин
+                                {% else %}
+                                    {{ (diff/3600)|round(1) }} ч
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Данные запроса -->
+            {% if conversion.request_data %}
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">📤 Отправленные данные</h5>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="toggleJson('request-data')">
+                        <i class="bi bi-code"></i> JSON
+                    </button>
+                </div>
+                <div class="card-body">
+                    <pre id="request-data" style="display: none; max-height: 400px; overflow-y: auto;">{{ conversion.request_data|tojson(indent=2) }}</pre>
+                    <div id="request-data-simple">
+                        <p><strong>Event:</strong> {{ conversion.request_data.event_data.event_name }}</p>
+                        <p><strong>Хеш телефона:</strong> <code>{{ conversion.request_data.event_data.user_data.ph[0][:20] }}...</code></p>
+                        {% if conversion.request_data.event_data.user_data.fbc %}
+                        <p><strong>FBC:</strong> <code>{{ conversion.request_data.event_data.user_data.fbc }}</code></p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Ответ Facebook -->
+            {% if conversion.response_data %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">📥 Ответ Facebook</h5>
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            onclick="toggleJson('response-data')">
+                        <i class="bi bi-code"></i> JSON
+                    </button>
+                </div>
+                <div class="card-body">
+                    <pre id="response-data" style="display: none; max-height: 300px; overflow-y: auto;">{{ conversion.response_data|tojson(indent=2) }}</pre>
+                    <div id="response-data-simple">
+                        {% if conversion.response_data.events_received %}
+                        <p class="text-success">
+                            <i class="bi bi-check-circle"></i> 
+                            События получены: {{ conversion.response_data.events_received }}
+                        </p>
+                        {% endif %}
+                        {% if conversion.response_data.fbtrace_id %}
+                        <p><strong>Trace ID:</strong> <code>{{ conversion.response_data.fbtrace_id }}</code></p>
+                        {% endif %}
+                        {% if conversion.response_data.error %}
+                        <p class="text-danger">
+                            <strong>Ошибка:</strong> {{ conversion.response_data.error.message }}
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleJson(elementId) {
+    const jsonElement = document.getElementById(elementId);
+    const simpleElement = document.getElementById(elementId + '-simple');
+    
+    if (jsonElement.style.display === 'none') {
+        jsonElement.style.display = 'block';
+        simpleElement.style.display = 'none';
+    } else {
+        jsonElement.style.display = 'none';
+        simpleElement.style.display = 'block';
+    }
+}
+</script>
+{% endblock %}
