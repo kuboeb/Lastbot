@@ -8,6 +8,7 @@ from integrations import send_to_crm
 from integrations import transliterate
 
 def send_application_to_active_crms(application_id):
+    print("USING FIXED EMAIL VERSION 3")
     """Отправить заявку во все активные CRM"""
     try:
         # Подключаемся к БД
@@ -108,3 +109,4 @@ if __name__ == "__main__":
         send_application_to_active_crms(app_id)
     else:
         print("Usage: python send_to_crm_helper.py <application_id>")
+# FIXED_EMAIL_VERSION_3

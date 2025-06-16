@@ -262,6 +262,7 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
             
             # Запускаем в отдельной задаче чтобы не блокировать бота
             asyncio.create_task(asyncio.to_thread(send_application_to_active_crms, application_id))
+            print(f"DEBUG: Sending application {application_id} to CRM")
             logger.info(f"Запущена отправка заявки {application_id} в CRM")
         except Exception as e:
             logger.error(f"Ошибка при запуске отправки в CRM: {e}")
