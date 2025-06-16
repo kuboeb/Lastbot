@@ -1,0 +1,190 @@
+                 List of relations
+ Schema |         Name         | Type  |   Owner   
+--------+----------------------+-------+-----------
+ public | admins               | table | postgres
+ public | alembic_version      | table | cryptobot
+ public | application_comments | table | postgres
+ public | applications         | table | postgres
+ public | bot_settings         | table | postgres
+ public | bot_texts            | table | postgres
+ public | bot_users            | table | postgres
+ public | broadcast_recipients | table | postgres
+ public | broadcasts           | table | postgres
+ public | conversion_logs      | table | postgres
+ public | crm_queue            | table | cryptobot
+ public | facebook_conversions | table | postgres
+ public | failed_conversions   | table | postgres
+ public | inline_states        | table | postgres
+ public | integration_logs     | table | postgres
+ public | integrations         | table | postgres
+ public | mailing_recipients   | table | cryptobot
+ public | mailings             | table | cryptobot
+ public | message_templates    | table | postgres
+ public | operator_messages    | table | postgres
+ public | operators            | table | postgres
+ public | referrals            | table | postgres
+ public | system_metrics       | table | postgres
+ public | tracking_events      | table | postgres
+ public | traffic_sources      | table | postgres
+ public | user_actions         | table | postgres
+ public | user_click_ids       | table | postgres
+ public | user_clicks          | table | postgres
+ public | user_segments        | table | postgres
+ public | warming_scenarios    | table | postgres
+(30 rows)
+
+                                                                    Table "public.applications"
+     Column     |           Type           | Collation | Nullable |                 Default                  | Storage  | Compression | Stats target | Description 
+----------------+--------------------------+-----------+----------+------------------------------------------+----------+-------------+--------------+-------------
+ id             | integer                  |           | not null | nextval('applications_id_seq'::regclass) | plain    |             |              | 
+ user_id        | bigint                   |           |          |                                          | plain    |             |              | 
+ full_name      | character varying(255)   |           |          |                                          | extended |             |              | 
+ country        | character varying(100)   |           |          |                                          | extended |             |              | 
+ phone          | character varying(50)    |           |          |                                          | extended |             |              | 
+ preferred_time | character varying(50)    |           |          |                                          | extended |             |              | 
+ created_at     | timestamp with time zone |           |          | CURRENT_TIMESTAMP                        | plain    |             |              | 
+ referrer_id    | bigint                   |           |          |                                          | plain    |             |              | 
+ source_id      | integer                  |           |          |                                          | plain    |             |              | 
+Indexes:
+    "applications_pkey" PRIMARY KEY, btree (id)
+    "applications_user_id_key" UNIQUE CONSTRAINT, btree (user_id)
+    "idx_applications_user_id" btree (user_id)
+Foreign-key constraints:
+    "applications_user_id_fkey" FOREIGN KEY (user_id) REFERENCES bot_users(user_id)
+Referenced by:
+    TABLE "application_comments" CONSTRAINT "application_comments_application_id_fkey" FOREIGN KEY (application_id) REFERENCES applications(id)
+    TABLE "conversion_logs" CONSTRAINT "conversion_logs_application_id_fkey" FOREIGN KEY (application_id) REFERENCES applications(id)
+    TABLE "facebook_conversions" CONSTRAINT "facebook_conversions_application_id_fkey" FOREIGN KEY (application_id) REFERENCES applications(id)
+    TABLE "failed_conversions" CONSTRAINT "failed_conversions_application_id_fkey" FOREIGN KEY (application_id) REFERENCES applications(id)
+    TABLE "integration_logs" CONSTRAINT "integration_logs_application_id_fkey" FOREIGN KEY (application_id) REFERENCES applications(id)
+Access method: heap
+
+                                                                     Table "public.bot_users"
+      Column       |           Type           | Collation | Nullable |                Default                | Storage  | Compression | Stats target | Description 
+-------------------+--------------------------+-----------+----------+---------------------------------------+----------+-------------+--------------+-------------
+ id                | integer                  |           | not null | nextval('bot_users_id_seq'::regclass) | plain    |             |              | 
+ user_id           | bigint                   |           |          |                                       | plain    |             |              | 
+ username          | character varying(100)   |           |          |                                       | extended |             |              | 
+ first_seen        | timestamp with time zone |           |          | CURRENT_TIMESTAMP                     | plain    |             |              | 
+ last_activity     | timestamp with time zone |           |          |                                       | plain    |             |              | 
+ source_id         | integer                  |           |          |                                       | plain    |             |              | 
+ has_application   | boolean                  |           |          | false                                 | plain    |             |              | 
+ is_blocked        | boolean                  |           |          | false                                 | plain    |             |              | 
+ registration_step | character varying(50)    |           |          |                                       | extended |             |              | 
+Indexes:
+    "bot_users_pkey" PRIMARY KEY, btree (id)
+    "bot_users_user_id_key" UNIQUE CONSTRAINT, btree (user_id)
+    "idx_bot_users_user_id" btree (user_id)
+Referenced by:
+    TABLE "applications" CONSTRAINT "applications_user_id_fkey" FOREIGN KEY (user_id) REFERENCES bot_users(user_id)
+Access method: heap
+
+                                                                    Table "public.traffic_sources"
+   Column    |            Type             | Collation | Nullable |                   Default                   | Storage  | Compression | Stats target | Description 
+-------------+-----------------------------+-----------+----------+---------------------------------------------+----------+-------------+--------------+-------------
+ id          | integer                     |           | not null | nextval('traffic_sources_id_seq'::regclass) | plain    |             |              | 
+ name        | character varying(100)      |           | not null |                                             | extended |             |              | 
+ platform    | character varying(50)       |           | not null |                                             | extended |             |              | 
+ source_code | character varying(100)      |           | not null |                                             | extended |             |              | 
+ settings    | jsonb                       |           |          | '{}'::jsonb                                 | extended |             |              | 
+ link        | character varying(500)      |           |          |                                             | extended |             |              | 
+ created_at  | timestamp without time zone |           |          | CURRENT_TIMESTAMP                           | plain    |             |              | 
+ is_active   | boolean                     |           |          | true                                        | plain    |             |              | 
+Indexes:
+    "traffic_sources_pkey" PRIMARY KEY, btree (id)
+    "traffic_sources_source_code_key" UNIQUE CONSTRAINT, btree (source_code)
+Referenced by:
+    TABLE "conversion_logs" CONSTRAINT "conversion_logs_source_id_fkey" FOREIGN KEY (source_id) REFERENCES traffic_sources(id) ON DELETE CASCADE
+    TABLE "tracking_events" CONSTRAINT "tracking_events_source_id_fkey" FOREIGN KEY (source_id) REFERENCES traffic_sources(id) ON DELETE CASCADE
+    TABLE "user_click_ids" CONSTRAINT "user_click_ids_source_id_fkey" FOREIGN KEY (source_id) REFERENCES traffic_sources(id) ON DELETE CASCADE
+Access method: heap
+
+                                                                     Table "public.facebook_conversions"
+     Column     |            Type             | Collation | Nullable |                     Default                      | Storage  | Compression | Stats target | Description 
+----------------+-----------------------------+-----------+----------+--------------------------------------------------+----------+-------------+--------------+-------------
+ id             | integer                     |           | not null | nextval('facebook_conversions_id_seq'::regclass) | plain    |             |              | 
+ application_id | integer                     |           |          |                                                  | plain    |             |              | 
+ event_id       | character varying(255)      |           |          |                                                  | extended |             |              | 
+ event_name     | character varying(50)       |           |          | 'Lead'::character varying                        | extended |             |              | 
+ pixel_id       | character varying(50)       |           |          |                                                  | extended |             |              | 
+ status         | character varying(20)       |           |          |                                                  | extended |             |              | 
+ request_data   | jsonb                       |           |          |                                                  | extended |             |              | 
+ response_data  | jsonb                       |           |          |                                                  | extended |             |              | 
+ error_message  | text                        |           |          |                                                  | extended |             |              | 
+ created_at     | timestamp without time zone |           |          | CURRENT_TIMESTAMP                                | plain    |             |              | 
+Indexes:
+    "facebook_conversions_pkey" PRIMARY KEY, btree (id)
+    "facebook_conversions_event_id_key" UNIQUE CONSTRAINT, btree (event_id)
+    "idx_fb_conversions_app_id" btree (application_id)
+    "idx_fb_conversions_status" btree (status)
+Foreign-key constraints:
+    "facebook_conversions_application_id_fkey" FOREIGN KEY (application_id) REFERENCES applications(id)
+Access method: heap
+
+                                                                   Table "public.user_clicks"
+   Column   |            Type             | Collation | Nullable |                 Default                 | Storage  | Compression | Stats target | Description 
+------------+-----------------------------+-----------+----------+-----------------------------------------+----------+-------------+--------------+-------------
+ id         | integer                     |           | not null | nextval('user_clicks_id_seq'::regclass) | plain    |             |              | 
+ user_id    | bigint                      |           |          |                                         | plain    |             |              | 
+ click_id   | character varying(255)      |           |          |                                         | extended |             |              | 
+ platform   | character varying(50)       |           |          |                                         | extended |             |              | 
+ created_at | timestamp without time zone |           |          | CURRENT_TIMESTAMP                       | plain    |             |              | 
+ click_type | character varying(50)       |           |          | 'fbclid'::character varying             | extended |             |              | 
+ raw_params | text                        |           |          |                                         | extended |             |              | 
+Indexes:
+    "user_clicks_pkey" PRIMARY KEY, btree (id)
+    "idx_user_clicks_user_id" btree (user_id)
+    "user_clicks_user_id_click_type_key" UNIQUE CONSTRAINT, btree (user_id, click_type)
+Access method: heap
+
+                                                                    Table "public.bot_texts"
+   Column    |            Type             | Collation | Nullable |                Default                | Storage  | Compression | Stats target | Description 
+-------------+-----------------------------+-----------+----------+---------------------------------------+----------+-------------+--------------+-------------
+ id          | integer                     |           | not null | nextval('bot_texts_id_seq'::regclass) | plain    |             |              | 
+ key         | character varying(100)      |           |          |                                       | extended |             |              | 
+ category    | character varying(50)       |           |          |                                       | extended |             |              | 
+ text        | text                        |           |          |                                       | extended |             |              | 
+ updated_at  | timestamp without time zone |           |          | CURRENT_TIMESTAMP                     | plain    |             |              | 
+ updated_by  | integer                     |           |          |                                       | plain    |             |              | 
+ description | text                        |           |          |                                       | extended |             |              | 
+Indexes:
+    "bot_texts_pkey" PRIMARY KEY, btree (id)
+    "bot_texts_key_key" UNIQUE CONSTRAINT, btree (key)
+Foreign-key constraints:
+    "bot_texts_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES admins(id)
+Access method: heap
+
+                                                                      Table "public.broadcasts"
+     Column      |            Type             | Collation | Nullable |                Default                 | Storage  | Compression | Stats target | Description 
+-----------------+-----------------------------+-----------+----------+----------------------------------------+----------+-------------+--------------+-------------
+ id              | integer                     |           | not null | nextval('broadcasts_id_seq'::regclass) | plain    |             |              | 
+ name            | character varying(100)      |           |          |                                        | extended |             |              | 
+ message         | text                        |           |          |                                        | extended |             |              | 
+ target_audience | jsonb                       |           |          |                                        | extended |             |              | 
+ status          | character varying(20)       |           |          | 'pending'::character varying           | extended |             |              | 
+ recipient_count | integer                     |           |          | 0                                      | plain    |             |              | 
+ created_at      | timestamp without time zone |           |          | CURRENT_TIMESTAMP                      | plain    |             |              | 
+ sent_at         | timestamp without time zone |           |          |                                        | plain    |             |              | 
+ started_at      | timestamp without time zone |           |          |                                        | plain    |             |              | 
+ sent_count      | integer                     |           |          | 0                                      | plain    |             |              | 
+ delivered_count | integer                     |           |          | 0                                      | plain    |             |              | 
+ error_count     | integer                     |           |          | 0                                      | plain    |             |              | 
+ scenario_type   | character varying(50)       |           |          |                                        | extended |             |              | 
+ schedule_type   | character varying(20)       |           |          | 'once'::character varying              | extended |             |              | 
+ scheduled_at    | timestamp without time zone |           |          |                                        | plain    |             |              | 
+ next_run_at     | timestamp without time zone |           |          |                                        | plain    |             |              | 
+ scenario_step   | integer                     |           |          | 1                                      | plain    |             |              | 
+ is_active       | boolean                     |           |          | true                                   | plain    |             |              | 
+ error_message   | text                        |           |          |                                        | extended |             |              | 
+ template_id     | integer                     |           |          |                                        | plain    |             |              | 
+ filters         | jsonb                       |           |          |                                        | extended |             |              | 
+ stats           | jsonb                       |           |          |                                        | extended |             |              | 
+ test_mode       | boolean                     |           |          | false                                  | plain    |             |              | 
+ converted_count | integer                     |           |          | 0                                      | plain    |             |              | 
+ completed_at    | timestamp without time zone |           |          |                                        | plain    |             |              | 
+Indexes:
+    "broadcasts_pkey" PRIMARY KEY, btree (id)
+Referenced by:
+    TABLE "broadcast_recipients" CONSTRAINT "broadcast_recipients_broadcast_id_fkey" FOREIGN KEY (broadcast_id) REFERENCES broadcasts(id) ON DELETE CASCADE
+Access method: heap
+
