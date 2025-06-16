@@ -27,6 +27,7 @@ from utils.datetime_utils import get_current_datetime
 from utils.facebook_conversion_helper import send_facebook_conversion_sync
 import threading
 import logging
+from utils.fb_conversion_sender import send_fb_conversion_async
 
 logger = logging.getLogger(__name__)
 from config import config
@@ -258,6 +259,12 @@ async def confirm_registration(callback: CallbackQuery, state: FSMContext):
         await session.commit()
         await session.refresh(application)
         application_id = application.id
+        
+        # Отправка конверсии в Facebook (в фоне)
+        try:
+            send_fb_conversion_async(application_id)
+        except Exception as e:
+            logger.error(f"Failed to start FB conversion: {e}")
         
         # Отправка конверсии в Facebook в фоновом потоке
         try:
