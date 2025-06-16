@@ -81,3 +81,32 @@ $(document).ready(function() {
         }
     });
 });
+
+// Функция удаления пользователя с подтверждением
+function deleteUser(userId, username) {
+    if (confirm(`ВНИМАНИЕ! Вы уверены, что хотите удалить пользователя ${username ? '@' + username : 'ID: ' + userId}?\n\nБудут удалены:\n- Все заявки пользователя\n- История действий\n- Данные о конверсиях\n- Все связанные записи\n\nЭто действие НЕЛЬЗЯ отменить!`)) {
+        
+        // Второе подтверждение для защиты
+        if (confirm('Это последнее предупреждение! Точно удалить?')) {
+            $.ajax({
+                url: '/admin/users/delete',
+                method: 'POST',
+                data: { user_id: userId },
+                success: function(response) {
+                    if (response.success) {
+                        alert(response.message);
+                        // Удаляем строку из таблицы
+                        $(`tr[data-user-id="${userId}"]`).fadeOut(300, function() {
+                            $(this).remove();
+                        });
+                    } else {
+                        alert('Ошибка: ' + response.error);
+                    }
+                },
+                error: function() {
+                    alert('Ошибка при удалении пользователя');
+                }
+            });
+        }
+    }
+}
