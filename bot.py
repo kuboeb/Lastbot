@@ -16,7 +16,7 @@ from aiogram.types import BotCommand
 
 from config import config
 from database import db_manager
-from handlers import start, registration, info
+from handlers import start_fixed as start, registration, info
 from middlewares.tracking import TrackingMiddleware
 from middlewares.antiflood import AntifloodMiddleware
 from middlewares.logging import LoggingMiddleware
