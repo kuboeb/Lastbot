@@ -1,5 +1,6 @@
-import traceback
 import logging
+import traceback
+
 import requests
 import hashlib
 import json
@@ -92,7 +93,7 @@ def _send_fb_conversion(application_id: int):
             user_data["fbc"] = f"fb.1.{int(datetime.now().timestamp())}.{fbclid}"
             logger.info(f"Including fbclid for better matching: {fbclid[:20]}...")
         
-        # Формируем данные для отправки (advertiser_tracking_enabled в app_data!)
+        # Формируем данные для отправки
         event_data = {
             "data": [{
                 "event_name": "Lead",
@@ -100,9 +101,7 @@ def _send_fb_conversion(application_id: int):
                 "event_id": event_id,
                 "action_source": "app",
                 "user_data": user_data,
-                "app_data": {
-                    "advertiser_tracking_enabled": 1  # Перемещаем сюда!
-                },
+                "advertiser_tracking_enabled": 1,  # Обязательно для app
                 "data_processing_options": []
             }],
             "access_token": access_token
