@@ -1,3 +1,4 @@
+from .models import get_db_connection
 import requests
 import hashlib
 import json
@@ -165,7 +166,6 @@ def send_facebook_conversion(application_data, source_settings):
 
 def retry_failed_conversions():
     """Повторная отправка неудачных конверсий"""
-    from database import get_db_connection
     import psycopg2.extras
     
     conn = get_db_connection()

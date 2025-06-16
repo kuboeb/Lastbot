@@ -7,7 +7,7 @@ from .models import (
     get_facebook_stats
 )
 from .services import retry_failed_conversions
-from database import get_db_connection
+from .models import get_db_connection
 import psycopg2.extras
 
 # Создаем таблицы при импорте

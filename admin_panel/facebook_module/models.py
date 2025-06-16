@@ -2,7 +2,26 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime
 import json
-from database import get_db_connection
+import sys
+import os
+
+# Добавляем путь к корневой директории проекта
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Импортируем функцию подключения к БД из app.py админки
+def get_db_connection():
+    """Функция подключения к БД"""
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    return psycopg2.connect(
+        host=os.getenv('DB_HOST', 'localhost'),
+        database=os.getenv('DB_NAME', 'crypto_course_db'),
+        user=os.getenv('DB_USER', 'cryptobot'),
+        password=os.getenv('DB_PASSWORD', 'kuboeb1A')
+    )
 
 def create_facebook_tables():
     """Создание таблиц для Facebook трекинга"""
