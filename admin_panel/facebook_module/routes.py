@@ -2,7 +2,7 @@ from flask import render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required
 from . import facebook_bp
 from .models import (
-    create_facebook_tables, 
+    check_facebook_tables,  # Изменено с create_facebook_tables
     get_facebook_conversions,
     get_facebook_stats
 )
@@ -10,8 +10,8 @@ from .services import retry_failed_conversions
 from .models import get_db_connection
 import psycopg2.extras
 
-# Создаем таблицы при импорте
-create_facebook_tables()
+# Проверяем таблицы при импорте
+check_facebook_tables()
 
 @facebook_bp.route('/')
 @facebook_bp.route('/conversions')
