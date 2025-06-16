@@ -1996,6 +1996,80 @@ except Exception as e:
 # Регистрируем RichAds маршруты
 
 
+
+@app.route('/richads/')
+@login_required
+def richads_dashboard():
+    """Дашборд RichAds конверсий"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Статистика
+    cur.execute("""
+        SELECT 
+            COUNT(*) as total,
+            COUNT(CASE WHEN status = 'sent' THEN 1 END) as sent,
+            COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+            COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending,
+            COALESCE(SUM(CASE WHEN status = 'sent' THEN payout ELSE 0 END), 0) as total_payout
+        FROM richads_conversions
+    """)
+    stats = cur.fetchone()
+    
+    # Последние конверсии с успешной отправкой
+    cur.execute("""
+        SELECT 
+            rc.id,
+            rc.application_id,
+            rc.click_id,
+            rc.campaign,
+            rc.payout,
+            rc.status,
+            rc.response_status,
+            rc.created_at,
+            rc.request_sent_at,
+            a.full_name,
+            a.phone,
+            a.country,
+            bu.username
+        FROM richads_conversions rc
+        JOIN applications a ON rc.application_id = a.id
+        JOIN bot_users bu ON a.user_id = bu.user_id
+        WHERE rc.status = 'sent'
+        ORDER BY rc.created_at DESC
+        LIMIT 100
+    """)
+    successful_conversions = cur.fetchall()
+    
+    # Все конверсии для таблицы
+    cur.execute("""
+        SELECT 
+            rc.*,
+            a.full_name,
+            a.phone,
+            bu.username
+        FROM richads_conversions rc
+        JOIN applications a ON rc.application_id = a.id
+        JOIN bot_users bu ON a.user_id = bu.user_id
+        ORDER BY rc.created_at DESC
+        LIMIT 50
+    """)
+    all_conversions = cur.fetchall()
+    
+    cur.close()
+    conn.close()
+    
+    # Обработка None значений для шаблона
+    if not stats:
+        stats = {'total': 0, 'sent': 0, 'failed': 0, 'pending': 0, 'total_payout': 0}
+    
+    return render_template('richads/dashboard.html', 
+                         stats=stats, 
+                         successful_conversions=successful_conversions or [],
+                         all_conversions=all_conversions or [])
+
+
+
 if __name__ == '__main__':
     init_admin()
     app.run(host='0.0.0.0', port=8000, debug=False)
@@ -2048,7 +2122,6 @@ def send_all_pending():
     return redirect(url_for('integrations'))
 
 # Регистрируем RichAds маршруты
-register_richads_routes(app, get_db_connection)
 
 
 
