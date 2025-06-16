@@ -20,6 +20,8 @@
                     <th>Название</th>
                     <th>Аудитория</th>
                     <th>Получателей</th>
+                    <th>Отправлено</th>
+                    <th>Ошибок</th>
                     <th>Статус</th>
                     <th>Создана</th>
                     <th>Действия</th>
@@ -31,45 +33,87 @@
                     <td>{{ mailing.id }}</td>
                     <td>{{ mailing.name }}</td>
                     <td>
-                        {% if mailing.audience_type == 'all' %}Все
-                        {% elif mailing.audience_type == 'no_application' %}Без заявки
-                        {% elif mailing.audience_type == 'with_application' %}С заявкой
+                        {% if mailing.audience_type == 'all' %}
+                            <span class="badge bg-primary">Все</span>
+                        {% elif mailing.audience_type == 'no_application' %}
+                            <span class="badge bg-warning">Без заявки</span>
+                        {% elif mailing.audience_type == 'with_application' %}
+                            <span class="badge bg-info">С заявкой</span>
                         {% endif %}
                     </td>
                     <td>{{ mailing.recipient_count or 0 }}</td>
                     <td>
+                        {% if mailing.sent_count %}
+                            <span class="text-success">{{ mailing.sent_count }}</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if mailing.failed_count %}
+                            <span class="text-danger">{{ mailing.failed_count }}</span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>
                         {% if mailing.status == 'draft' %}
                             <span class="badge bg-secondary">Черновик</span>
+                        {% elif mailing.status == 'sending' %}
+                            <span class="badge bg-warning">
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                                Отправляется
+                            </span>
                         {% elif mailing.status == 'sent' %}
                             <span class="badge bg-success">Отправлено</span>
                         {% endif %}
                     </td>
                     <td>{{ mailing.created_at.strftime('%d.%m.%Y %H:%M') if mailing.created_at else '' }}</td>
                     <td>
-                        <a href="{{ url_for('mailing.stats', mailing_id=mailing.id) }}" class="btn btn-sm btn-info">
-                            <i class="bi bi-graph-up"></i>
-                        </a>
-                        {% if mailing.status == 'draft' %}
-                        <button class="btn btn-sm btn-success" onclick="sendMailing({{ mailing.id }})">
-                            <i class="bi bi-send"></i>
-                        </button>
-                        {% endif %}
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{{ url_for('mailing.stats', mailing_id=mailing.id) }}" 
+                               class="btn btn-info" title="Статистика">
+                                <i class="bi bi-graph-up"></i>
+                            </a>
+                            
+                            {% if mailing.status == 'draft' %}
+                            <button class="btn btn-success" onclick="sendMailing({{ mailing.id }})" title="Отправить">
+                                <i class="bi bi-send"></i>
+                            </button>
+                            {% endif %}
+                            
+                            {% if mailing.status in ['draft', 'sent'] %}
+                            <button class="btn btn-danger" onclick="deleteMailing({{ mailing.id }})" title="Удалить">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    
+    <!-- Легенда статусов -->
+    <div class="mt-3">
+        <small class="text-muted">
+            <i class="bi bi-info-circle"></i> 
+            Можно удалять только черновики и отправленные рассылки. 
+            Рассылки в процессе отправки удалить нельзя.
+        </small>
+    </div>
     {% else %}
     <div class="alert alert-info">
-        Рассылок пока нет. <a href="{{ url_for('mailing.create') }}">Создать первую</a>
+        <i class="bi bi-info-circle"></i> Рассылок пока нет. 
+        <a href="{{ url_for('mailing.create') }}" class="alert-link">Создать первую рассылку</a>
     </div>
     {% endif %}
 </div>
 
 <script>
 async function sendMailing(mailingId) {
-    if (!confirm('Отправить рассылку?')) return;
+    if (!confirm('Отправить рассылку всем получателям?')) return;
     
     try {
         const response = await fetch(`/mailing/${mailingId}/send`, {
@@ -88,5 +132,38 @@ async function sendMailing(mailingId) {
         alert('Ошибка: ' + error);
     }
 }
+
+async function deleteMailing(mailingId) {
+    if (!confirm('Удалить эту рассылку? Это действие нельзя отменить.')) return;
+    
+    try {
+        const response = await fetch(`/mailing/${mailingId}/delete`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            // Плавно скрываем строку
+            const row = event.target.closest('tr');
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => {
+                location.reload();
+            }, 300);
+        } else {
+            alert('Ошибка: ' + result.error);
+        }
+    } catch (error) {
+        alert('Ошибка: ' + error);
+    }
+}
+
+// Автообновление страницы каждые 10 секунд если есть рассылки в процессе отправки
+{% if mailings and mailings|selectattr("status", "equalto", "sending")|list %}
+setTimeout(() => {
+    location.reload();
+}, 10000);
+{% endif %}
 </script>
 {% endblock %}

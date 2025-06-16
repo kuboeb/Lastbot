@@ -79,9 +79,14 @@ def stats(mailing_id):
 def send(mailing_id):
     """Отправить рассылку"""
     try:
-        # Простая заглушка для отправки
-        mailing_model.update_mailing_status(mailing_id, 'sent')
-        return jsonify({'success': True, 'message': 'Рассылка отправлена'})
+        result = mailing_service.send_mailing(mailing_id)
+        if result['success']:
+            return jsonify({
+                'success': True, 
+                'message': f'Отправлено: {result["sent"]}, Ошибок: {result["failed"]}, Всего: {result["total"]}'
+            })
+        else:
+            return jsonify({'success': False, 'error': result.get('error', 'Неизвестная ошибка')})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
@@ -93,5 +98,17 @@ def preview():
         audience_type = request.json.get('audience', 'all')
         count = mailing_model.get_audience_count(audience_type)
         return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@mailing_bp.route('/<int:mailing_id>/delete', methods=['POST'])
+@login_required
+def delete(mailing_id):
+    """Удалить рассылку"""
+    try:
+        if mailing_model.delete_mailing(mailing_id):
+            return jsonify({'success': True, 'message': 'Рассылка удалена'})
+        else:
+            return jsonify({'success': False, 'error': 'Невозможно удалить рассылку (возможно, она в процессе отправки)'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})

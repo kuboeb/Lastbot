@@ -192,3 +192,76 @@ class MailingModel:
         finally:
             cur.close()
             conn.close()
+
+    def get_mailing_recipients(self, mailing_id):
+        """Получить список получателей рассылки"""
+        conn = self.get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("""
+                SELECT 
+                    mr.user_id,
+                    bu.username,
+                    mr.status
+                FROM mailing_recipients mr
+                JOIN bot_users bu ON mr.user_id = bu.user_id
+                WHERE mr.mailing_id = %s AND mr.status = 'pending'
+                AND bu.is_blocked = FALSE
+            """, (mailing_id,))
+            return cur.fetchall()
+        finally:
+            cur.close()
+            conn.close()
+    
+    def update_recipient_status(self, mailing_id, user_id, status):
+        """Обновить статус получателя"""
+        conn = self.get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("""
+                UPDATE mailing_recipients 
+                SET status = %s, sent_at = CURRENT_TIMESTAMP
+                WHERE mailing_id = %s AND user_id = %s
+            """, (status, mailing_id, user_id))
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+    
+    def update_mailing_stats(self, mailing_id, sent_count, failed_count):
+        """Обновить статистику рассылки"""
+        conn = self.get_db_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute("""
+                UPDATE mailings 
+                SET sent_count = %s, failed_count = %s
+                WHERE id = %s
+            """, (sent_count, failed_count, mailing_id))
+            conn.commit()
+        finally:
+            cur.close()
+            conn.close()
+
+    def delete_mailing(self, mailing_id):
+        """Удалить рассылку"""
+        conn = self.get_db_connection()
+        cur = conn.cursor()
+        try:
+            # Удаляем только черновики или отправленные рассылки
+            cur.execute("""
+                DELETE FROM mailings 
+                WHERE id = %s AND status IN ('draft', 'sent')
+                RETURNING id
+            """, (mailing_id,))
+            
+            deleted = cur.fetchone()
+            conn.commit()
+            return deleted is not None
+            
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cur.close()
+            conn.close()
