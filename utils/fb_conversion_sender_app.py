@@ -92,14 +92,18 @@ def _send_fb_conversion(application_id: int):
             user_data["fbc"] = f"fb.1.{int(datetime.now().timestamp())}.{fbclid}"
             logger.info(f"Including fbclid for better matching: {fbclid[:20]}...")
         
-        # Формируем данные для отправки - меняем на website!
+        # Формируем данные для отправки с ОБОИМИ параметрами в app_data!
         event_data = {
             "data": [{
                 "event_name": "Lead",
                 "event_time": int(datetime.now().timestamp()),
                 "event_id": event_id,
-                "action_source": "website",  # Изменено с "app" на "website"!
+                "action_source": "app",
                 "user_data": user_data,
+                "app_data": {
+                    "advertiser_tracking_enabled": 1,
+                    "application_tracking_enabled": 1  # Добавляем второй параметр!
+                },
                 "data_processing_options": []
             }],
             "access_token": access_token
